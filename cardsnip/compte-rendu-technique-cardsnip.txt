@@ -1,0 +1,495 @@
+Compte rendu technique - CardSnip
+
+1. Etat actuel du projet
+
+CardSnip est aujourd'hui un MVP local fonctionnel partiel, avec un vrai debut de flux metier connecte.
+
+Frontend :
+Next.js + TypeScript + TailwindCSS. Le dashboard, catalogue, produits, boutiques, deals, veille, alertes et parametres existent deja. Une partie des donnees reste mockee, mais le dashboard commence a lire les vraies donnees SQLite via FastAPI.
+
+FastAPI :
+Une API locale Python tourne sur http://localhost:8000. Elle expose les produits, boutiques, suivis, observations, alertes, et permet de lancer le scraper via /scraper/run.
+
+SQLite :
+Base locale presente ici :
+C:\Users\Nagara\Documents\New project\cardsnip\data\cardsnip.local.sqlite3
+
+Scraper Python :
+Le scraper lit les produits suivis actifs dans SQLite, scrape uniquement la fake shop locale, puis ecrit les observations prix/stock et les alertes.
+
+Fake shop :
+Page HTML locale sur http://localhost:8080, utilisee comme seule source reelle de test.
+
+Dashboard :
+Il affiche les mocks en fallback, mais peut afficher les dernieres observations et alertes reelles si FastAPI/SQLite repondent.
+
+Alertes :
+Alertes console + alertes SQLite. Discord reste optionnel mais non central.
+
+localStorage :
+Il reste probablement utilise sur certaines pages frontend comme fallback/prototype, notamment produits/catalogue, mais le flux principal local commence a passer par SQLite.
+
+
+2. Architecture actuelle
+
+Flux reel actuel :
+
+Next.js frontend
+-> FastAPI locale
+-> SQLite locale
+<- Scraper Python
+<- Fake shop locale
+
+Le frontend appelle l'API via :
+web/src/lib/cardsnip-api.ts
+
+Base SQLite :
+data/cardsnip.local.sqlite3
+
+Le scraper lit les suivis actifs depuis :
+tracked_products
+
+Il scrape l'URL source_url, puis ecrit dans :
+price_observations
+
+Les alertes sont generees si :
+- le prix est inferieur ou egal au target_price
+- le produit est en stock
+- un retour en stock est detecte selon l'observation precedente
+
+Le dashboard recupere :
+GET /observations/latest
+GET /alerts
+POST /scraper/run
+
+
+3. Fichiers importants
+
+Backend / API :
+
+scraper/api.py
+API FastAPI principale. Contient les endpoints /health, /products, /shops, /tracked-products, /observations, /alerts, /scraper/run.
+
+scraper/storage/schema.sql
+Schema SQLite local : produits, boutiques, suivis, observations, alertes.
+
+scraper/storage/database.py
+Connexion SQLite, chemin DB, init DB, busy_timeout, WAL.
+
+scraper/storage/repositories.py
+Fonctions de lecture/ecriture SQLite : produits, boutiques, suivis, observations, alertes.
+
+scraper/scripts/init_db.py
+Initialise la DB, cree les tables, seed les boutiques mockees et un produit demo fake shop.
+
+Scraper :
+
+scraper/main.py
+Point d'entree manuel du scraper.
+
+scraper/scrapers/fake_shop.py
+Scraper de la fake shop. Parse nom, prix, stock. Gere les erreurs fake shop indisponible.
+
+scraper/services/tracked_check_service.py
+Service central du check : lit les suivis actifs, lance le scraper, ecrit observations/alertes, retourne un resume.
+
+scraper/services/alert_service.py
+Alertes console et Discord optionnel.
+
+Frontend :
+
+web/src/lib/cardsnip-api.ts
+Client API frontend.
+
+web/src/types/local-api.ts
+Types TypeScript pour les reponses FastAPI.
+
+web/src/components/cardsnip-dashboard.tsx
+Dashboard branche partiellement sur observations/alertes reelles + bouton "Lancer un check".
+
+web/src/components/pages/catalogue-page.tsx
+Catalogue avec logique de creation de suivi vers l'API quand disponible.
+
+web/src/components/pages/products-page.tsx
+Page produits partiellement branchee sur les suivis SQLite avec fallback mock/localStorage.
+
+Documentation :
+
+README.md
+Documentation projet + section "Test end-to-end local".
+
+
+4. Endpoints API disponibles
+
+GET /health
+Role : verifier que FastAPI repond.
+Reponse :
+{"status":"ok"}
+Utilise par : tests manuels.
+
+GET /products
+Liste les produits catalogue.
+Utilise par : catalogue.
+
+POST /products
+Cree un produit catalogue.
+Utilise par : catalogue selon flux API.
+
+GET /shops
+Liste les boutiques.
+Utilise par : catalogue/creation de suivi.
+
+POST /shops
+Cree une boutique.
+Utilise surtout backend/test, pas central frontend.
+
+GET /tracked-products
+Liste les produits surveilles.
+Utilise par : produits/catalogue/dashboard indirectement.
+
+POST /tracked-products
+Cree un suivi produit depuis un produit catalogue.
+Utilise par : catalogue.
+
+GET /observations
+Liste les observations recentes.
+Utilise surtout test/API.
+
+GET /observations/latest
+Liste la derniere observation par produit suivi.
+Utilise par : dashboard.
+Si DB vide :
+[]
+
+GET /alerts
+Liste les alertes.
+Utilise par : dashboard.
+Si DB vide :
+[]
+
+POST /scraper/run
+Lance le scraper sur les suivis actifs.
+Utilise par : bouton dashboard.
+Reponse OK :
+{
+  "tracked_products": 1,
+  "observations": 1,
+  "alerts": 1,
+  "errors": 0,
+  "messages": []
+}
+
+Reponse avec erreur fake shop :
+{
+  "tracked_products": 1,
+  "observations": 0,
+  "alerts": 0,
+  "errors": 1,
+  "messages": ["Erreur check #1 (...): Fake shop inaccessible..."]
+}
+
+
+5. Schema SQLite
+
+products
+Role : identite propre d'un produit catalogue.
+Colonnes principales :
+- id
+- name
+- category
+- language
+- extension
+- image_url
+- created_at
+Relation :
+Un produit peut avoir plusieurs tracked_products.
+
+shops
+Role : boutique/source surveillable.
+Colonnes principales :
+- id
+- name
+- url
+- active
+- trusted
+- created_at
+Relation :
+Une boutique peut avoir plusieurs tracked_products.
+
+tracked_products
+Role : suivi d'un produit sur une boutique precise.
+Colonnes principales :
+- id
+- product_id
+- shop_id
+- source_url
+- target_price
+- active
+- created_at
+Relations :
+- product_id -> products.id
+- shop_id -> shops.id
+
+price_observations
+Role : historique des checks prix/stock.
+Colonnes principales :
+- id
+- tracked_product_id
+- price
+- stock_status
+- checked_at
+Relation :
+- tracked_product_id -> tracked_products.id
+
+alerts
+Role : alertes generees par le scraper.
+Colonnes principales :
+- id
+- tracked_product_id
+- type
+- message
+- created_at
+Relation :
+- tracked_product_id -> tracked_products.id
+
+
+6. Flux end-to-end
+
+Flux actuel :
+1. Fake shop locale tourne sur localhost:8080.
+2. Un produit catalogue existe dans products.
+3. Un suivi existe ou est cree dans tracked_products.
+4. Le scraper est lance manuellement avec python main.py ou via POST /scraper/run.
+5. Le scraper lit les suivis actifs.
+6. Il scrape la fake shop via source_url.
+7. Il ecrit une observation dans price_observations.
+8. Il cree une alerte dans alerts si condition remplie.
+9. Le dashboard lit /observations/latest et /alerts.
+10. Le dashboard affiche les donnees reelles si elles existent.
+
+Etat :
+Ce flux fonctionne de bout en bout avec la fake shop.
+
+
+7. Commandes de lancement
+
+Initialiser SQLite :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\scraper"
+.\.venv\Scripts\Activate.ps1
+python scripts\init_db.py
+
+Creer le venv si necessaire :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\scraper"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python scripts\init_db.py
+
+Lancer la fake shop :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\fake-shop"
+python -m http.server 8080
+
+Lancer FastAPI :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\scraper"
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn api:app --reload --port 8000
+
+Lancer Next.js :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\web"
+npm.cmd run dev
+
+Lancer le scraper manuellement :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\scraper"
+.\.venv\Scripts\Activate.ps1
+python main.py
+
+Tester /scraper/run :
+
+Invoke-WebRequest -UseBasicParsing -Method Post "http://localhost:8000/scraper/run"
+
+Tester observations :
+
+Invoke-WebRequest -UseBasicParsing "http://localhost:8000/observations/latest"
+
+Tester alertes :
+
+Invoke-WebRequest -UseBasicParsing "http://localhost:8000/alerts"
+
+
+8. Bugs connus / limites actuelles
+
+Bugs restants connus :
+- Les accents peuvent apparaitre mal encodes dans certains outputs PowerShell/README selon l'encodage d'affichage.
+- Certains ecrans frontend restent mockes.
+- La page Produits n'est pas encore parfaitement branchee sur les dernieres observations reelles.
+- Le dashboard melange encore donnees mockees et donnees reelles.
+- Le localStorage reste present comme fallback/prototype.
+- Pas encore de vraie gestion d'etat global propre.
+- Pas encore de tests automatises unitaires/integration.
+- Pas encore de reset DB propre documente hors init.
+- Le bouton dashboard lance le scraper, mais ce n'est pas encore une UX admin finale.
+- Plusieurs lancements du scraper peuvent generer plusieurs alertes similaires.
+- Pas encore de deduplication d'alertes.
+- Pas encore de vraie gestion d'historique prix cote page detail.
+- Pas encore de gestion multi-produits bien testee.
+- Pas encore de vraie strategie d'images produit.
+- Pas encore de scraper reel boutique.
+
+Erreurs possibles :
+- Si FastAPI est down, le frontend affiche une erreur API offline.
+- Si fake shop est down, /scraper/run retourne errors: 1 avec messages[].
+- Si SQLite est momentanement occupee, timeout/WAL ont ete ajoutes, mais il faut encore surveiller en usage reel.
+- Si la DB est vide, /observations/latest et /alerts retournent bien [].
+
+
+9. Tests deja effectues
+
+Lint frontend :
+OK
+Commande :
+npm.cmd run lint
+
+Build frontend :
+OK
+Commande :
+npm.cmd run build
+
+Compilation Python :
+OK
+Commande :
+python -m py_compile api.py main.py storage\database.py services\tracked_check_service.py scrapers\fake_shop.py
+
+Fake shop :
+OK
+Testee sur :
+http://localhost:8080/index.html?price=39.99&stock=in
+
+API health :
+OK
+
+Scraper :
+OK
+
+Ecriture SQLite :
+OK
+
+Lecture observations :
+OK
+
+Lecture alertes :
+OK
+
+Dashboard :
+OK partiel
+Il repond, affiche les donnees reelles si disponibles, mais reste partiellement mocke.
+
+Bouton check manuel :
+OK
+
+DB vide :
+OK
+/observations/latest retourne [].
+/alerts retourne [].
+
+Scenario price=39.99&stock=in :
+OK
+Observation + alerte generees.
+
+Scenario price=99.99&stock=out :
+OK
+Observation generee, pas d'alerte prix cible.
+
+Fake shop down :
+OK
+Erreur propre dans messages[].
+
+
+10. Prochaine etape recommandee
+
+Ne pas ajouter de feature tout de suite.
+
+Priorite recommandee :
+1. Nettoyer et stabiliser le flux MVP local.
+2. Verifier que /catalogue -> creer un suivi -> scraper -> dashboard fonctionne sans manipulation manuelle SQL.
+3. Ameliorer la page Produits pour afficher proprement les observations reelles.
+4. Ajouter un petit script de test end-to-end reproductible.
+5. Nettoyer les doublons README et clarifier les commandes.
+6. Faire un commit propre "local MVP data flow".
+7. Preparer ensuite seulement la structure pour un premier vrai scraper autorise.
+
+Ne pas faire maintenant :
+- Supabase
+- auth
+- Stripe
+- vraies boutiques
+- Docker
+- Celery
+- workers
+- nouvelle page frontend
+- SEO
+- collection tracker
+
+
+Resume a transmettre au mentor
+
+CardSnip est un MVP local pour surveiller prix/stock de produits TCG sealed. Le frontend Next.js existe deja avec dashboard, catalogue, produits, boutiques, deals, veille, alertes et parametres. Une API FastAPI locale a ete ajoutee avec SQLite pour commencer a remplacer les mocks/localStorage. Le scraper Python lit les tracked_products actifs depuis SQLite, scrape uniquement une fake shop locale, ecrit dans price_observations, puis genere des alertes dans alerts.
+
+Flux fonctionnel actuel :
+fake-shop -> scraper Python -> SQLite -> FastAPI -> dashboard -> alertes
+
+Fichiers cles :
+- scraper/api.py
+- scraper/storage/schema.sql
+- scraper/storage/database.py
+- scraper/storage/repositories.py
+- scraper/scripts/init_db.py
+- scraper/main.py
+- scraper/scrapers/fake_shop.py
+- scraper/services/tracked_check_service.py
+- web/src/lib/cardsnip-api.ts
+- web/src/types/local-api.ts
+- web/src/components/cardsnip-dashboard.tsx
+- README.md
+
+Commandes cles :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\scraper"
+.\.venv\Scripts\Activate.ps1
+python scripts\init_db.py
+python -m uvicorn api:app --reload --port 8000
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\fake-shop"
+python -m http.server 8080
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\web"
+npm.cmd run dev
+
+Invoke-WebRequest -UseBasicParsing -Method Post "http://localhost:8000/scraper/run"
+
+Ce qui fonctionne :
+- API /health
+- produits/boutiques/suivis
+- scraper fake shop
+- ecriture observations SQLite
+- generation alertes SQLite
+- dashboard qui lit observations/alertes reelles
+- gestion propre DB vide avec []
+- erreur propre si fake shop/API indisponible
+
+Ce qui ne fonctionne pas encore completement :
+- frontend encore partiellement mocke
+- page Produits pas encore parfaitement reliee aux dernieres observations
+- pas de deduplication d'alertes
+- pas de tests automatises complets
+- pas de vraie boutique
+- pas de Supabase branche
+- pas de vraie gestion images produit
+
+Question principale a poser au mentor :
+Est-ce que cette architecture locale FastAPI + SQLite + scraper Python est une bonne base transitoire pour stabiliser le MVP avant migration Supabase, ou faut-il simplifier davantage avant d'ajouter le premier vrai scraper autorise ?

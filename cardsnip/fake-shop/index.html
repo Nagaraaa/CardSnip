@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fake Shop - CardSnip</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shop-shell">
+      <section class="product-card" data-product-card>
+        <div class="badge">Boutique de test</div>
+        <div class="product-art">ETB</div>
+        <p class="eyebrow">Pokemon sealed</p>
+        <h1 data-product-name>Elite Trainer Box - Edition Demo</h1>
+        <p class="description">
+          Produit fictif utilise pour tester CardSnip sans scraper de vraie boutique.
+        </p>
+
+        <div class="product-meta">
+          <div>
+            <span class="label">Prix</span>
+            <strong data-product-price>49.99 EUR</strong>
+          </div>
+          <div>
+            <span class="label">Stock</span>
+            <strong class="stock in-stock" data-product-stock>En stock</strong>
+          </div>
+        </div>
+
+        <button type="button">Ajouter au panier</button>
+      </section>
+
+      <aside class="control-panel" aria-label="Panneau de test">
+        <h2>Scenario de test</h2>
+        <label>
+          Prix affiche
+          <input data-price-input type="number" min="0" step="0.01" value="49.99" />
+        </label>
+        <label class="toggle-row">
+          <input data-stock-input type="checkbox" checked />
+          Produit en stock
+        </label>
+        <p>
+          Modifie ces valeurs, puis relance le scraper pour verifier la detection.
+        </p>
+      </aside>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
