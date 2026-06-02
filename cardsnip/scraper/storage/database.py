@@ -26,8 +26,42 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
 
 
 def init_db(db_path: Path | None = None) -> None:
-    with connect(db_path) as connection:
+    connection = connect(db_path)
+    try:
         connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        ensure_schema_compatibility(connection)
+    finally:
+        connection.close()
+
+
+def ensure_schema_compatibility(connection: sqlite3.Connection) -> None:
+    shop_columns = {
+        row["name"]
+        for row in connection.execute("pragma table_info(shops)").fetchall()
+    }
+
+    if "scraper_key" not in shop_columns:
+        connection.execute("alter table shops add column scraper_key text not null default 'not_configured'")
+
+    shop_defaults = {
+        "country": "unknown",
+        "type": "tcg_specialist",
+        "priority": "medium",
+        "difficulty": "unknown",
+        "integration_status": "to_analyze",
+        "notes": None,
+    }
+
+    for column_name, default_value in shop_defaults.items():
+        if column_name in shop_columns:
+            continue
+
+        if default_value is None:
+            connection.execute(f"alter table shops add column {column_name} text")
+        else:
+            connection.execute(f"alter table shops add column {column_name} text not null default '{default_value}'")
+
+    connection.commit()
 
 
 def get_connection() -> Iterator[sqlite3.Connection]:

@@ -24,6 +24,15 @@ const featureCards = [
   },
 ];
 
+function BrandWordmark() {
+  return (
+    <span className="cardsnip-wordmark relative inline-flex items-baseline text-2xl font-black tracking-tight text-white">
+      <span>Card</span>
+      <span className="cardsnip-wordmark-accent ml-0.5">Snip</span>
+    </span>
+  );
+}
+
 function MiniCard({ label, color, position, delay }: (typeof floatingCards)[number]) {
   return (
     <div
@@ -49,13 +58,8 @@ export function CardSnipHome() {
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-5 sm:px-8">
         <header className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-xl border border-violet-300/25 bg-violet-300/10 text-sm font-black text-violet-100">
-              CS
-            </div>
-            <div className="text-xl font-black">
-              Card<span className="text-violet-300">Snip</span>
-            </div>
+          <div className="flex min-h-10 items-center">
+            <BrandWordmark />
           </div>
           <Link
             href="/dashboard"

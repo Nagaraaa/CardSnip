@@ -1,0 +1,114 @@
+Resume - Alignement Otakuland-Manga Passion
+
+Objectif
+--------
+
+Corriger l'ambiguite autour du nom de boutique :
+
+Le site candidat n'est pas `otakuland.fr`.
+La source pertinente pour CardSnip est :
+
+https://otakuland-mangapassion.com
+
+Le libelle applicatif doit donc etre :
+
+Otakuland-Manga Passion
+
+
+Fichiers modifies
+-----------------
+
+- scraper/scripts/init_db.py
+- web/src/data/mock-dashboard.ts
+- web/src/components/pages/deals-page.tsx
+- docs/shop-analysis/otakuland.md
+- README.md
+
+
+Changements effectues
+---------------------
+
+1. Seed SQLite
+
+L'entree boutique a ete renommee :
+
+- ancien nom : Otakuland
+- nouveau nom : Otakuland-Manga Passion
+
+URL conservee/corrigee :
+
+https://otakuland-mangapassion.com
+
+Une migration douce a ete ajoutee dans init_db.py :
+
+Si une DB locale contient encore `Otakuland`, le seed renomme l'entree en `Otakuland-Manga Passion`.
+
+
+2. DB locale
+
+scripts/init_db.py a ete relance.
+
+Verification DB :
+
+- name : Otakuland-Manga Passion
+- url : https://otakuland-mangapassion.com
+- country : BE/FR
+- integration_status : to_analyze
+
+
+3. Frontend mocks
+
+Les donnees mockees affichent maintenant :
+
+Otakuland-Manga Passion
+
+au lieu de :
+
+Otakuland
+
+
+4. Documentation
+
+La fiche d'analyse principale parle maintenant de :
+
+Otakuland-Manga Passion
+
+Les anciennes mentions `otakuland.fr` restent uniquement dans les passages historiques qui expliquent l'erreur initiale.
+
+
+Tests effectues
+---------------
+
+Python compile :
+
+OK
+
+npm lint :
+
+OK
+
+npm build :
+
+OK
+
+
+Contraintes respectees
+----------------------
+
+- aucun scraper reel ajoute ;
+- aucune nouvelle page ;
+- aucune modification d'architecture ;
+- aucune modification Supabase ;
+- Fake Shop reste le seul scraper fonctionnel ;
+- Otakuland-Manga Passion reste en statut `to_analyze`.
+
+
+Conclusion
+----------
+
+Le projet est maintenant aligne sur le bon site :
+
+Otakuland-Manga Passion
+https://otakuland-mangapassion.com
+
+La boutique reste candidate, pas encore integree comme scraper reel.

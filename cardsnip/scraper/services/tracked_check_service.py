@@ -1,14 +1,14 @@
 import sqlite3
 from typing import Any
 
-from scrapers.fake_shop import FakeShopScraper
+from scrapers.registry import create_scraper
 from services.alert_service import AlertService
 from services.logger import log_product_check
 from storage import repositories
 from storage.database import connect, init_db
 
 
-def run_tracked_products() -> dict[str, int]:
+def run_tracked_products() -> dict[str, Any]:
     init_db()
 
     summary = {
@@ -19,7 +19,8 @@ def run_tracked_products() -> dict[str, int]:
         "messages": [],
     }
 
-    with connect() as connection:
+    connection = connect()
+    try:
         tracked_products = repositories.list_tracked_products(connection, active_only=True)
         summary["tracked_products"] = len(tracked_products)
 
@@ -41,12 +42,15 @@ def run_tracked_products() -> dict[str, int]:
                 message = f"Erreur check #{tracked_product['id']} ({tracked_product['product_name']}): {error}"
                 summary["messages"].append(message)
                 print(message)
+    finally:
+        connection.close()
 
     return summary
 
 
 def scrape_tracked_product(connection: sqlite3.Connection, tracked_product: dict[str, Any]) -> dict[str, int]:
-    scraper = FakeShopScraper(
+    scraper = create_scraper(
+        scraper_key=tracked_product["scraper_key"],
         source_url=tracked_product["source_url"],
         target_price=float(tracked_product["target_price"]),
     )

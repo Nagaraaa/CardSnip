@@ -1,0 +1,404 @@
+Resume - Preparation registry scrapers CardSnip
+
+Objectif de cette passe
+-----------------------
+
+Preparer CardSnip a accueillir plusieurs scrapers plus tard, sans coder de vraie boutique maintenant.
+
+Demandes traitees :
+
+1. Clarifier l'interface BaseScraper.
+2. S'assurer que FakeShopScraper suit exactement cette interface.
+3. Ajouter un champ scraper_key cote shops.
+4. Preparer un registry simple des scrapers.
+5. Documenter comment ajouter une nouvelle boutique.
+6. Ne pas coder de vraie boutique maintenant.
+
+
+Ce qui a ete modifie
+--------------------
+
+1. Interface BaseScraper clarifiee
+
+Fichier modifie :
+
+scraper/scrapers/base.py
+
+Changements :
+
+- ajout du champ de classe obligatoire scraper_key ;
+- conservation du constructeur commun :
+  - source_url
+  - target_price
+- clarification du contrat scrape() :
+  - chaque scraper doit lire une source ;
+  - chaque scraper doit retourner un ProductCheck normalise.
+
+Role :
+
+BaseScraper devient le contrat commun que tous les futurs scrapers devront respecter.
+
+
+2. FakeShopScraper aligne sur l'interface
+
+Fichier modifie :
+
+scraper/scrapers/fake_shop.py
+
+Changements :
+
+- ajout de :
+
+scraper_key = "fake_shop"
+
+Role :
+
+FakeShopScraper est maintenant identifie par une cle stable et peut etre charge via le registry.
+
+Important :
+
+FakeShopScraper reste le seul scraper fonctionnel actuellement.
+Aucune vraie boutique n'a ete ajoutee.
+
+
+3. Registry simple des scrapers
+
+Fichier ajoute :
+
+scraper/scrapers/registry.py
+
+Contenu principal :
+
+SCRAPER_REGISTRY = {
+    "fake_shop": FakeShopScraper,
+}
+
+Fonction ajoutee :
+
+create_scraper(scraper_key, source_url, target_price)
+
+Role :
+
+- selectionner la bonne classe de scraper selon shops.scraper_key ;
+- instancier le scraper ;
+- retourner une erreur claire si la cle est inconnue.
+
+Exemple d'erreur possible :
+
+Scraper inconnu: not_configured. Scrapers disponibles: fake_shop
+
+
+4. Ajout scraper_key cote SQLite shops
+
+Fichier modifie :
+
+scraper/storage/schema.sql
+
+Changement :
+
+La table shops contient maintenant :
+
+scraper_key text not null default 'not_configured'
+
+Role :
+
+Relier chaque boutique a un scraper disponible, sans coder la logique boutique directement dans tracked_check_service.
+
+
+5. Migration legere pour DB existante
+
+Fichier modifie :
+
+scraper/storage/database.py
+
+Changement :
+
+Ajout d'une compatibilite schema :
+
+- si la table shops existe deja sans scraper_key ;
+- alors init_db ajoute automatiquement la colonne scraper_key.
+
+Role :
+
+Eviter de devoir supprimer manuellement la base SQLite existante.
+
+
+6. Repositories SQLite mis a jour
+
+Fichier modifie :
+
+scraper/storage/repositories.py
+
+Changements :
+
+- list_shops retourne scraper_key ;
+- get_shop retourne scraper_key ;
+- create_shop accepte scraper_key ;
+- list_tracked_products retourne scraper_key depuis la boutique liee.
+
+Role :
+
+Permettre au scraper de savoir quel connecteur utiliser pour chaque tracked_product.
+
+
+7. Seed SQLite mis a jour
+
+Fichier modifie :
+
+scraper/scripts/init_db.py
+
+Changements :
+
+Boutiques seed :
+
+- Fake Shop -> scraper_key = fake_shop
+- Cardmarket -> scraper_key = not_configured
+- Kuro Star -> scraper_key = not_configured
+- Pikastore -> scraper_key = not_configured
+- UltraJeux -> scraper_key = not_configured
+- Otakuland -> scraper_key = not_configured
+
+Role :
+
+Seule la fake shop est active/configuree.
+Les autres boutiques restent visibles dans le prototype, mais aucune integration reelle n'est active.
+
+
+8. Service de check branche sur le registry
+
+Fichier modifie :
+
+scraper/services/tracked_check_service.py
+
+Avant :
+
+Le service instancait directement FakeShopScraper.
+
+Apres :
+
+Le service appelle :
+
+create_scraper(
+    scraper_key=tracked_product["scraper_key"],
+    source_url=tracked_product["source_url"],
+    target_price=...
+)
+
+Role :
+
+Le service de check ne depend plus directement de FakeShopScraper.
+Il peut utiliser n'importe quel scraper enregistre plus tard.
+
+
+9. API FastAPI mise a jour
+
+Fichier modifie :
+
+scraper/api.py
+
+Changement :
+
+ShopCreate accepte maintenant :
+
+scraper_key
+
+Valeur par defaut :
+
+not_configured
+
+Role :
+
+Les boutiques creees plus tard via API pourront avoir une cle de scraper explicite.
+
+
+10. Types frontend mis a jour
+
+Fichier modifie :
+
+web/src/types/local-api.ts
+
+Changements :
+
+ApiShop contient maintenant :
+
+scraper_key: string
+
+ApiTrackedProduct contient maintenant :
+
+scraper_key: string
+
+Role :
+
+Aligner le frontend avec les nouvelles reponses API.
+
+
+11. Documentation README mise a jour
+
+Fichier modifie :
+
+README.md
+
+Section ajoutee :
+
+Ajouter une nouvelle boutique plus tard
+
+Cette section explique :
+
+- le contrat BaseScraper ;
+- le champ scraper_key ;
+- le registry ;
+- le lien shops.scraper_key -> classe de scraper ;
+- les etapes futures pour ajouter une boutique autorisee ;
+- les limites a respecter.
+
+Rappel documente :
+
+- ne pas coder de vraie boutique sans validation ;
+- ne pas contourner d'anti-bot ;
+- preferer API officielle, partenariat ou source autorisee ;
+- garder la fake shop comme source de test locale.
+
+
+Etat actuel des scrapers
+------------------------
+
+Scrapers disponibles :
+
+- fake_shop
+
+Scrapers non configures :
+
+- Cardmarket
+- Kuro Star
+- Pikastore
+- UltraJeux
+- Otakuland
+
+Important :
+
+Aucune vraie boutique n'a ete integree.
+Le registry est uniquement une preparation technique propre.
+
+
+Verification effectuee
+----------------------
+
+1. Initialisation DB + verification shops
+
+Commande :
+
+python scripts\init_db.py
+
+Resultat :
+
+OK
+
+Verification /shops :
+
+Fake Shop retourne :
+
+scraper_key = fake_shop
+
+Les autres boutiques retournent :
+
+scraper_key = not_configured
+
+
+2. Compilation Python
+
+Commande :
+
+python -m py_compile api.py main.py storage\database.py storage\repositories.py services\tracked_check_service.py scrapers\base.py scrapers\fake_shop.py scrapers\registry.py
+
+Resultat :
+
+OK
+
+
+3. Test end-to-end local
+
+Commande :
+
+.\scripts\test-end-to-end-local.ps1
+
+Resultat :
+
+OK
+
+Flux valide :
+
+fake-shop -> scraper -> SQLite -> FastAPI -> dashboard
+
+
+4. Lint frontend
+
+Commande :
+
+npm.cmd run lint
+
+Resultat :
+
+OK
+
+
+5. Build frontend
+
+Commande :
+
+npm.cmd run build
+
+Resultat :
+
+OK
+
+
+Ce qui n'a PAS ete fait
+-----------------------
+
+- pas de vraie boutique ;
+- pas de Cardmarket ;
+- pas de Kuro Star ;
+- pas de Pikastore ;
+- pas d'UltraJeux ;
+- pas d'Otakuland ;
+- pas de scraping reel ;
+- pas de Supabase ;
+- pas d'auth ;
+- pas de Stripe ;
+- pas de worker ;
+- pas de scheduler ;
+- pas de nouvelle page frontend.
+
+
+Utilite de cette passe
+----------------------
+
+Avant cette passe :
+
+Le scraper etait encore implicitement lie a FakeShopScraper.
+
+Apres cette passe :
+
+Le systeme sait :
+
+1. lire un tracked_product ;
+2. regarder sa boutique ;
+3. recuperer shops.scraper_key ;
+4. trouver le scraper correspondant dans le registry ;
+5. lancer le scraper sans connaitre sa classe en dur.
+
+C'est une base plus propre pour brancher un premier vrai scraper autorise plus tard, sans casser le flux MVP local.
+
+
+Prochaine etape recommandee
+---------------------------
+
+Ne pas ajouter de vraie boutique tout de suite.
+
+Prochaine etape logique :
+
+1. Continuer a stabiliser le MVP local.
+2. Ajouter quelques tests Python simples sur le registry.
+3. Verifier le flux Catalogue -> suivi -> scraper avec plusieurs suivis fake shop.
+4. Garder not_configured pour toutes les boutiques non implementees.
+5. Quand une source autorisee sera choisie, creer un nouveau scraper qui herite de BaseScraper et l'enregistrer dans registry.py.

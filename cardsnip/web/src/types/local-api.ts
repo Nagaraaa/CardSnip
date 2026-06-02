@@ -12,6 +12,13 @@ export type ApiShop = {
   id: number;
   name: string;
   url: string | null;
+  scraper_key: string;
+  country?: string;
+  type?: string;
+  priority?: string;
+  difficulty?: string;
+  integration_status?: string;
+  notes?: string | null;
   active: number;
   trusted: number;
   created_at: string;
@@ -28,6 +35,7 @@ export type ApiTrackedProduct = {
   shop_id: number;
   shop_name: string;
   shop_url: string | null;
+  scraper_key: string;
   source_url: string;
   target_price: number;
   active: number;

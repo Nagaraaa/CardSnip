@@ -1,0 +1,251 @@
+Resume - Tests registry et multi-tracking CardSnip
+
+Objectif de cette passe
+-----------------------
+
+Ajouter des tests Python simples pour securiser la preparation multi-scrapers, sans ajouter de vraie boutique et sans modifier l'interface utilisateur.
+
+Demandes traitees :
+
+1. Ajouter quelques tests Python simples pour le registry.
+2. Tester create_scraper("fake_shop").
+3. Tester create_scraper("not_configured") avec erreur propre.
+4. Tester plusieurs tracked_products Fake Shop dans SQLite.
+5. Verifier que le scraper cree plusieurs observations.
+6. Verifier que les alertes restent dedupliquees par tracked_product.
+7. Ne pas ajouter de vraie boutique.
+8. Ne pas modifier l'UI sauf bug.
+
+
+Fichiers ajoutes / modifies
+---------------------------
+
+1. Fichier ajoute :
+
+scraper/tests/test_registry_and_multi_tracking.py
+
+Role :
+
+Contient les tests Python pour :
+
+- le registry des scrapers ;
+- la creation d'un FakeShopScraper via create_scraper ;
+- l'erreur propre quand scraper_key vaut not_configured ;
+- plusieurs tracked_products Fake Shop dans une SQLite temporaire ;
+- la creation de plusieurs observations ;
+- la deduplication des alertes par tracked_product.
+
+
+2. Fichier modifie :
+
+scraper/services/tracked_check_service.py
+
+Changement mineur :
+
+L'annotation de retour de run_tracked_products() a ete ajustee.
+
+Avant :
+
+dict[str, int]
+
+Apres :
+
+dict[str, Any]
+
+Pourquoi :
+
+La fonction retourne aussi :
+
+messages: []
+
+donc le type precedent etait trop strict.
+
+
+Tests ajoutes
+-------------
+
+1. Test create_scraper("fake_shop")
+
+Objectif :
+
+Verifier que le registry retourne bien un FakeShopScraper.
+
+Resultat attendu :
+
+- instance de FakeShopScraper ;
+- source_url conservee ;
+- target_price conserve.
+
+Statut :
+
+OK
+
+
+2. Test create_scraper("not_configured")
+
+Objectif :
+
+Verifier qu'une boutique visible mais non implementee ne lance pas un scraper par accident.
+
+Resultat attendu :
+
+- ValueError ;
+- message clair contenant "Scraper inconnu: not_configured".
+
+Statut :
+
+OK
+
+
+3. Test plusieurs tracked_products Fake Shop
+
+Objectif :
+
+Verifier que deux produits suivis dans SQLite peuvent etre checkes dans la meme passe.
+
+Setup :
+
+- SQLite temporaire ;
+- 1 boutique Fake Shop avec scraper_key = fake_shop ;
+- 2 produits catalogue ;
+- 2 tracked_products actifs ;
+- source_url vers fake-shop/index.html ;
+- target_price a 55.0.
+
+Resultat attendu premier check :
+
+- 2 observations creees ;
+- 4 alertes creees :
+  - price_below_target pour chaque tracked_product ;
+  - in_stock pour chaque tracked_product.
+
+Statut :
+
+OK
+
+
+4. Test deduplication alertes par tracked_product
+
+Objectif :
+
+Verifier qu'un second check identique sous target price ne recree pas de doublon d'alerte.
+
+Resultat attendu deuxieme check :
+
+- 2 nouvelles observations creees ;
+- 0 nouvelle alerte ;
+- le nombre total d'alertes reste a 4 ;
+- les alertes existantes concernent bien les deux tracked_products.
+
+Statut :
+
+OK
+
+
+Commandes lancees
+-----------------
+
+Tests Python :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\scraper"
+python -m unittest discover -s tests -p "test_*.py" -v
+
+Resultat :
+
+OK
+
+Sortie logique :
+
+- 3 tests lances ;
+- 3 tests OK.
+
+
+Compilation Python :
+
+python -m py_compile api.py main.py storage\database.py storage\repositories.py services\tracked_check_service.py scrapers\base.py scrapers\fake_shop.py scrapers\registry.py tests\test_registry_and_multi_tracking.py
+
+Resultat :
+
+OK
+
+
+Test end-to-end local :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip"
+.\scripts\test-end-to-end-local.ps1
+
+Resultat :
+
+OK
+
+Flux valide :
+
+fake-shop -> scraper -> SQLite -> FastAPI -> dashboard
+
+
+Lint frontend :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\web"
+npm.cmd run lint
+
+Resultat :
+
+OK
+
+
+Build frontend :
+
+npm.cmd run build
+
+Resultat :
+
+OK
+
+
+Ce qui n'a PAS ete fait
+-----------------------
+
+- pas de vraie boutique ajoutee ;
+- pas de Cardmarket ;
+- pas de Kuro Star ;
+- pas de Pikastore ;
+- pas d'UltraJeux ;
+- pas d'Otakuland ;
+- pas de scraping reel ;
+- pas de modification UI ;
+- pas de nouvelle page frontend ;
+- pas de Supabase ;
+- pas de worker ;
+- pas de scheduler.
+
+
+Etat final
+----------
+
+Le registry des scrapers est maintenant teste.
+
+On sait que :
+
+- fake_shop est resolu correctement ;
+- not_configured echoue proprement ;
+- plusieurs suivis Fake Shop peuvent produire plusieurs observations ;
+- les alertes sont dedupliquees au check suivant par tracked_product ;
+- le flux end-to-end local reste fonctionnel.
+
+
+Fichiers importants pour review
+-------------------------------
+
+- scraper/scrapers/registry.py
+- scraper/scrapers/base.py
+- scraper/scrapers/fake_shop.py
+- scraper/services/tracked_check_service.py
+- scraper/tests/test_registry_and_multi_tracking.py
+- scraper/storage/repositories.py
+- scraper/storage/schema.sql
+
+
+Question possible au superviseur
+--------------------------------
+
+Est-ce que cette approche BaseScraper + scraper_key + registry simple est suffisante pour preparer l'ajout futur d'un premier scraper autorise, ou faut-il introduire une interface plus stricte avant d'aller plus loin ?

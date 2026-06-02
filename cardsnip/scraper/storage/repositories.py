@@ -8,15 +8,22 @@ def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return {key: row[key] for key in row.keys()}
 
 
-def list_products(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+def list_products(connection: sqlite3.Connection, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
     rows = connection.execute(
         """
         select id, name, category, language, extension, image_url, created_at
         from products
         order by id desc
-        """
+        limit ? offset ?
+        """,
+        (limit, offset),
     ).fetchall()
     return [row_to_dict(row) for row in rows]
+
+
+def count_products(connection: sqlite3.Connection) -> int:
+    row = connection.execute("select count(*) as total from products").fetchone()
+    return int(row["total"]) if row else 0
 
 
 def create_product(connection: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, Any]:
@@ -51,26 +58,40 @@ def get_product(connection: sqlite3.Connection, product_id: int) -> dict[str, An
     return row_to_dict(row)
 
 
-def list_shops(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+def list_shops(connection: sqlite3.Connection, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
     rows = connection.execute(
         """
-        select id, name, url, active, trusted, created_at
+        select id, name, url, scraper_key, country, type, priority, difficulty, integration_status, notes, active, trusted, created_at
         from shops
         order by name asc
-        """
+        limit ? offset ?
+        """,
+        (limit, offset),
     ).fetchall()
     return [row_to_dict(row) for row in rows]
+
+
+def count_shops(connection: sqlite3.Connection) -> int:
+    row = connection.execute("select count(*) as total from shops").fetchone()
+    return int(row["total"]) if row else 0
 
 
 def create_shop(connection: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, Any]:
     cursor = connection.execute(
         """
-        insert into shops (name, url, active, trusted)
-        values (:name, :url, :active, :trusted)
+        insert into shops (name, url, scraper_key, country, type, priority, difficulty, integration_status, notes, active, trusted)
+        values (:name, :url, :scraper_key, :country, :type, :priority, :difficulty, :integration_status, :notes, :active, :trusted)
         """,
         {
             "name": payload["name"],
             "url": payload.get("url"),
+            "scraper_key": payload.get("scraper_key") or "not_configured",
+            "country": payload.get("country") or "unknown",
+            "type": payload.get("type") or "tcg_specialist",
+            "priority": payload.get("priority") or "medium",
+            "difficulty": payload.get("difficulty") or "unknown",
+            "integration_status": payload.get("integration_status") or "to_analyze",
+            "notes": payload.get("notes"),
             "active": int(bool(payload.get("active", True))),
             "trusted": int(bool(payload.get("trusted", True))),
         },
@@ -82,7 +103,7 @@ def create_shop(connection: sqlite3.Connection, payload: dict[str, Any]) -> dict
 def get_shop(connection: sqlite3.Connection, shop_id: int) -> dict[str, Any]:
     row = connection.execute(
         """
-        select id, name, url, active, trusted, created_at
+        select id, name, url, scraper_key, country, type, priority, difficulty, integration_status, notes, active, trusted, created_at
         from shops
         where id = ?
         """,
@@ -93,7 +114,12 @@ def get_shop(connection: sqlite3.Connection, shop_id: int) -> dict[str, Any]:
     return row_to_dict(row)
 
 
-def list_tracked_products(connection: sqlite3.Connection, active_only: bool = False) -> list[dict[str, Any]]:
+def list_tracked_products(
+    connection: sqlite3.Connection,
+    active_only: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
     where_clause = "where tp.active = 1" if active_only else ""
     rows = connection.execute(
         f"""
@@ -108,6 +134,7 @@ def list_tracked_products(connection: sqlite3.Connection, active_only: bool = Fa
           tp.shop_id,
           s.name as shop_name,
           s.url as shop_url,
+          s.scraper_key,
           tp.source_url,
           tp.target_price,
           tp.active,
@@ -117,9 +144,23 @@ def list_tracked_products(connection: sqlite3.Connection, active_only: bool = Fa
         join shops s on s.id = tp.shop_id
         {where_clause}
         order by tp.id desc
-        """
+        limit ? offset ?
+        """,
+        (limit, offset),
     ).fetchall()
     return [row_to_dict(row) for row in rows]
+
+
+def count_tracked_products(connection: sqlite3.Connection, active_only: bool = False) -> int:
+    where_clause = "where active = 1" if active_only else ""
+    row = connection.execute(
+        f"""
+        select count(*) as total
+        from tracked_products
+        {where_clause}
+        """
+    ).fetchone()
+    return int(row["total"]) if row else 0
 
 
 def create_tracked_product(connection: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, Any]:
@@ -141,14 +182,37 @@ def create_tracked_product(connection: sqlite3.Connection, payload: dict[str, An
 
 
 def get_tracked_product(connection: sqlite3.Connection, tracked_product_id: int) -> dict[str, Any]:
-    rows = list_tracked_products(connection)
-    for row in rows:
-        if row["id"] == tracked_product_id:
-            return row
+    row = connection.execute(
+        """
+        select
+          tp.id,
+          tp.product_id,
+          p.name as product_name,
+          p.category,
+          p.language,
+          p.extension,
+          p.image_url,
+          tp.shop_id,
+          s.name as shop_name,
+          s.url as shop_url,
+          s.scraper_key,
+          tp.source_url,
+          tp.target_price,
+          tp.active,
+          tp.created_at
+        from tracked_products tp
+        join products p on p.id = tp.product_id
+        join shops s on s.id = tp.shop_id
+        where tp.id = ?
+        """,
+        (tracked_product_id,),
+    ).fetchone()
+    if row:
+        return row_to_dict(row)
     raise ValueError(f"Tracked product not found: {tracked_product_id}")
 
 
-def list_observations(connection: sqlite3.Connection, limit: int = 50) -> list[dict[str, Any]]:
+def list_observations(connection: sqlite3.Connection, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
     rows = connection.execute(
         """
         select
@@ -164,9 +228,9 @@ def list_observations(connection: sqlite3.Connection, limit: int = 50) -> list[d
         join products p on p.id = tp.product_id
         join shops s on s.id = tp.shop_id
         order by po.checked_at desc, po.id desc
-        limit ?
+        limit ? offset ?
         """,
-        (limit,),
+        (limit, offset),
     ).fetchall()
     return [row_to_dict(row) for row in rows]
 
@@ -184,12 +248,11 @@ def list_latest_observations(connection: sqlite3.Connection) -> list[dict[str, A
           po.checked_at
         from price_observations po
         join (
-          select tracked_product_id, max(checked_at) as max_checked_at
+          select tracked_product_id, max(id) as latest_id
           from price_observations
           group by tracked_product_id
         ) latest
-          on latest.tracked_product_id = po.tracked_product_id
-         and latest.max_checked_at = po.checked_at
+          on latest.latest_id = po.id
         join tracked_products tp on tp.id = po.tracked_product_id
         join products p on p.id = tp.product_id
         join shops s on s.id = tp.shop_id
@@ -199,7 +262,7 @@ def list_latest_observations(connection: sqlite3.Connection) -> list[dict[str, A
     return [row_to_dict(row) for row in rows]
 
 
-def list_alerts(connection: sqlite3.Connection, limit: int = 50) -> list[dict[str, Any]]:
+def list_alerts(connection: sqlite3.Connection, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
     rows = connection.execute(
         """
         select
@@ -215,9 +278,9 @@ def list_alerts(connection: sqlite3.Connection, limit: int = 50) -> list[dict[st
         join products p on p.id = tp.product_id
         join shops s on s.id = tp.shop_id
         order by a.created_at desc, a.id desc
-        limit ?
+        limit ? offset ?
         """,
-        (limit,),
+        (limit, offset),
     ).fetchall()
     return [row_to_dict(row) for row in rows]
 

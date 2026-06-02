@@ -1,0 +1,310 @@
+Resume - Stabilisation MVP local CardSnip
+
+Objectif de cette passe
+-----------------------
+
+Stabiliser le flux local existant sans ajouter de nouvelle feature, sans nouvelle page, sans vraie boutique, sans Supabase et sans refonte UI.
+
+Flux vise :
+
+fake-shop -> scraper Python -> SQLite -> FastAPI -> dashboard -> alertes
+
+
+Ce qui a ete fait
+-----------------
+
+1. Verification du flux "Creer un suivi" depuis Catalogue
+
+Le flux a ete verifie via les memes endpoints utilises par le formulaire Catalogue :
+
+- POST /products
+- GET /shops
+- POST /tracked-products
+
+Resultat :
+
+- un produit catalogue peut etre cree dans SQLite ;
+- une boutique Fake Shop peut etre selectionnee ;
+- un suivi peut etre cree dans tracked_products ;
+- aucune manipulation SQL manuelle n'est necessaire pour ce flux applicatif.
+
+
+2. Page Produits branchee sur les observations reelles
+
+Fichier modifie :
+
+web/src/components/pages/products-page.tsx
+
+Avant :
+
+- la page Produits lisait les tracked_products depuis l'API ;
+- mais elle n'affichait pas encore les derniers prix/stocks reels ;
+- elle pouvait retomber sur les deals mockes, ce qui creait une confusion entre donnees reelles et donnees demo.
+
+Apres :
+
+- la page Produits lit maintenant aussi GET /observations/latest ;
+- chaque produit suivi SQLite est associe a sa derniere observation si elle existe ;
+- le prix actuel affiche le dernier prix reel observe ;
+- le stock detecte s'affiche quand il existe ;
+- si l'API locale est disponible, la page affiche les suivis SQLite au lieu de melanger avec les deals mockes.
+
+Objectif :
+
+Rendre la page Produits plus coherente avec le vrai flux MVP local.
+
+
+3. Reduction du melange mocks / reel
+
+Sur la page Produits :
+
+- API disponible = affichage des suivis SQLite ;
+- API indisponible = fallback local/mock.
+
+Cela evite de faire croire que des deals mockes sont des donnees reelles quand l'API locale fonctionne.
+
+
+4. Deduplication simple des alertes
+
+Fichier modifie :
+
+scraper/services/tracked_check_service.py
+
+Avant :
+
+- chaque lancement du scraper pouvait recreer une alerte price_below_target si le produit restait sous le prix cible.
+
+Apres :
+
+- si l'observation precedente etait deja en stock et sous le target_price, le scraper ne recree pas une alerte identique au check suivant ;
+- l'alerte est generee uniquement quand le produit passe sous la cible, ou lors du premier check pertinent.
+
+Objectif :
+
+Eviter les doublons d'alertes inutiles pendant les tests locaux.
+
+
+5. Script de test end-to-end local
+
+Fichier ajoute :
+
+scripts/test-end-to-end-local.ps1
+
+Role :
+
+Automatiser le test du flux local complet.
+
+Le script :
+
+- initialise SQLite avec python scripts/init_db.py ;
+- verifie que la fake shop repond ;
+- verifie que FastAPI repond ;
+- teste le scenario price=39.99&stock=in ;
+- lance POST /scraper/run ;
+- verifie que l'observation vaut 39.99 et in_stock ;
+- teste le scenario price=99.99&stock=out ;
+- lance POST /scraper/run ;
+- verifie que l'observation vaut 99.99 et out_of_stock ;
+- restaure l'URL demo initiale price=39.99&stock=in.
+
+Commande :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip"
+.\scripts\test-end-to-end-local.ps1
+
+Precondition :
+
+La fake shop et FastAPI doivent deja etre lancees.
+
+
+6. README clarifie
+
+Fichier modifie :
+
+README.md
+
+Ajouts / clarifications :
+
+- section Test end-to-end local ;
+- commande du script scripts/test-end-to-end-local.ps1 ;
+- rappel des scenarios :
+  - price=39.99&stock=in
+  - price=99.99&stock=out
+- clarification du flux fake-shop -> scraper -> SQLite -> FastAPI -> dashboard -> alertes.
+
+
+7. .gitignore renforce
+
+Fichier modifie :
+
+.gitignore
+
+Ajout :
+
+*.log
+
+Objectif :
+
+Eviter de versionner les logs locaux FastAPI / Next.js.
+
+
+8. Commit propre
+
+Un commit Git a ete cree.
+
+Commit :
+
+63e6de5 Stabilize CardSnip local MVP flow
+
+Important :
+
+Le depot Git racine est :
+
+C:\Users\Nagara\Documents\New project
+
+Le dossier cardsnip a ete ajoute dans ce commit.
+
+Les dossiers non lies suivants n'ont pas ete ajoutes :
+
+- Calculatrice/
+- MoisClair/
+- TowerDefense/
+
+
+Tests effectues
+---------------
+
+Compilation Python :
+
+python -m py_compile api.py main.py storage\database.py services\tracked_check_service.py scrapers\fake_shop.py
+
+Resultat :
+
+OK
+
+
+Lint frontend :
+
+npm.cmd run lint
+
+Resultat :
+
+OK
+
+
+Build frontend :
+
+npm.cmd run build
+
+Resultat :
+
+OK
+
+
+Script end-to-end local :
+
+.\scripts\test-end-to-end-local.ps1
+
+Resultat :
+
+OK
+
+
+Verification routes frontend :
+
+- http://localhost:3000/products
+- http://localhost:3000/catalogue
+- http://localhost:3000/dashboard
+
+Resultat :
+
+OK, status 200.
+
+
+Verification scenarios metier
+-----------------------------
+
+Scenario A :
+
+price=39.99&stock=in
+
+Resultat :
+
+- observation creee ;
+- prix detecte : 39.99 ;
+- stock_status : in_stock ;
+- alerte generee si le prix est sous la cible.
+
+
+Scenario B :
+
+price=99.99&stock=out
+
+Resultat :
+
+- observation creee ;
+- prix detecte : 99.99 ;
+- stock_status : out_of_stock ;
+- pas de nouvelle alerte price_below_target.
+
+
+Scenario deduplication :
+
+Deux checks consecutifs sous target price.
+
+Resultat :
+
+- premier check : alerte possible ;
+- deuxieme check identique : pas de doublon d'alerte.
+
+
+Etat final apres cette passe
+----------------------------
+
+Le flux MVP local est plus stable :
+
+- Catalogue peut creer un suivi via API ;
+- Produits affiche davantage de donnees reelles ;
+- Dashboard peut lancer un check ;
+- Scraper ecrit dans SQLite ;
+- API expose observations et alertes ;
+- alertes simples dedupliquees ;
+- script e2e local disponible ;
+- README plus clair ;
+- commit propre effectue.
+
+
+Limites restantes
+-----------------
+
+- Le frontend reste partiellement mocke sur certaines pages.
+- La page Produits est amelioree mais pas encore une UX finale.
+- Pas de tests automatises unitaires.
+- Pas de vraie boutique.
+- Pas de Supabase branche.
+- Pas de vraie gestion d'images produit.
+- Pas de deduplication avancee des alertes.
+- Pas de systeme de planification automatique du scraper.
+
+
+Prochaine etape recommandee
+---------------------------
+
+Avant toute nouvelle feature :
+
+1. Continuer a nettoyer les derniers melanges mock/reel.
+2. Ajouter quelques tests backend simples autour des repositories et du scraper.
+3. Verifier le flux complet depuis l'interface Catalogue avec navigation utilisateur.
+4. Clarifier les donnees seed/demo.
+5. Preparer ensuite seulement un premier vrai scraper autorise.
+
+Ne pas faire tout de suite :
+
+- Supabase ;
+- auth ;
+- Stripe ;
+- vraie boutique ;
+- Docker ;
+- Celery ;
+- workers ;
+- nouvelle page frontend.

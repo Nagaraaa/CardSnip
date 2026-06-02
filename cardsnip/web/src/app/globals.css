@@ -36,3 +36,64 @@ textarea {
     transform: translate3d(0, -18px, 0) rotate(-3deg);
   }
 }
+
+.cardsnip-wordmark {
+  isolation: isolate;
+  text-shadow: 0 0 24px rgba(139, 92, 246, 0.16);
+}
+
+.cardsnip-wordmark::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -0.22rem 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.9), rgba(34, 211, 238, 0.45), transparent);
+  opacity: 0.72;
+  transform: scaleX(0.72);
+  transform-origin: center;
+  animation: wordmarkLine 4.8s ease-in-out infinite;
+}
+
+.cardsnip-wordmark-accent {
+  background: linear-gradient(110deg, #c4b5fd 0%, #a78bfa 36%, #f5f3ff 52%, #7dd3fc 68%, #c4b5fd 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: wordmarkSheen 5.6s ease-in-out infinite;
+}
+
+@keyframes wordmarkSheen {
+  0%,
+  35%,
+  100% {
+    background-position: 0% 50%;
+    filter: drop-shadow(0 0 0 rgba(167, 139, 250, 0));
+  }
+
+  62% {
+    background-position: 100% 50%;
+    filter: drop-shadow(0 0 10px rgba(167, 139, 250, 0.18));
+  }
+}
+
+@keyframes wordmarkLine {
+  0%,
+  100% {
+    opacity: 0.32;
+    transform: scaleX(0.52);
+  }
+
+  48%,
+  62% {
+    opacity: 0.88;
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardsnip-wordmark::after,
+  .cardsnip-wordmark-accent {
+    animation: none;
+  }
+}

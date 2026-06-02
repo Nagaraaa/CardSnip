@@ -245,7 +245,7 @@ Boutiques mockees :
 - Kuro Star ;
 - Pikastore ;
 - UltraJeux ;
-- Otakuland.
+- Otakuland-Manga Passion.
 
 Important :
 
@@ -511,6 +511,113 @@ Fonctionnalites :
 - affiche logs console ;
 - envoie une alerte console ;
 - webhook Discord optionnel.
+
+## Ajouter une nouvelle boutique plus tard
+
+Pour l'instant, seule la fake shop est autorisee et fonctionnelle. Les vraies boutiques ne doivent pas etre integrees tant que les conditions d'utilisation, l'autorisation technique et le cadre legal ne sont pas valides.
+
+La structure est toutefois prete pour ajouter un scraper plus tard.
+
+### Contrat d'un scraper
+
+Tous les scrapers doivent heriter de :
+
+```txt
+scraper/scrapers/base.py
+```
+
+Chaque scraper doit definir :
+
+```python
+scraper_key = "cle_unique"
+```
+
+et implementer :
+
+```python
+def scrape(self) -> ProductCheck:
+    ...
+```
+
+Le retour doit toujours etre un `ProductCheck` normalise avec :
+
+- nom produit ;
+- prix ;
+- stock ;
+- URL source ;
+- timestamp ;
+- target price.
+
+### Registry des scrapers
+
+Le fichier :
+
+```txt
+scraper/scrapers/registry.py
+```
+
+associe chaque `scraper_key` a sa classe Python.
+
+Exemple actuel :
+
+```python
+SCRAPER_REGISTRY = {
+    "fake_shop": FakeShopScraper,
+    "otakuland": OtakulandScraper,
+}
+```
+
+### Lien boutique -> scraper
+
+La table SQLite `shops` contient maintenant :
+
+```txt
+scraper_key
+```
+
+Ce champ dit au scraper quel connecteur utiliser pour une boutique.
+
+Exemples :
+
+```txt
+Fake Shop                -> fake_shop
+Otakuland-Manga Passion  -> otakuland
+Cardmarket               -> not_configured
+Kuro Star                -> not_configured
+```
+
+`not_configured` signifie volontairement : boutique visible dans le prototype, mais aucun scraper branche.
+
+### Statut Otakuland-Manga Passion
+
+Otakuland-Manga Passion est marque `functional` uniquement pour le perimetre V1 limite :
+
+- pages produit simples ;
+- pas d'options obligatoires ;
+- pas de variantes ;
+- pas de crawl catalogue ;
+- pas de scheduler ;
+- pas de bouton panier comme source fiable de stock ;
+- pas d'usage SaaS public sans clarification d'autorisation.
+
+Les pages contenant `isOptionRequired: true` sont refusees proprement par le scraper V1.
+
+### Etapes futures pour ajouter une boutique autorisee
+
+1. Creer un fichier dans `scraper/scrapers/`, par exemple `ma_boutique.py`.
+2. Heriter de `BaseScraper`.
+3. Definir une cle stable, par exemple `scraper_key = "ma_boutique"`.
+4. Retourner un `ProductCheck` depuis `scrape()`.
+5. Ajouter la classe dans `scraper/scrapers/registry.py`.
+6. Mettre `shops.scraper_key = "ma_boutique"` pour la boutique concernee.
+7. Tester via `POST /scraper/run`.
+
+Important :
+
+- ne pas coder de vraie boutique sans validation prealable ;
+- ne pas contourner d'anti-bot ;
+- preferer API officielle, partenariat ou source explicitement autorisee ;
+- garder la fake shop comme source de test locale.
 
 ## API locale FastAPI + SQLite
 

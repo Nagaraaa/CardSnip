@@ -33,7 +33,7 @@ const communitySignals = [
   {
     id: "discord-bundle",
     source: "Discord",
-    title: "Bundle 151 disponible chez Otakuland",
+    title: "Bundle 151 disponible chez Otakuland-Manga Passion",
     heat: "+41",
     status: "Nouveau",
     time: "il y a 19 min",

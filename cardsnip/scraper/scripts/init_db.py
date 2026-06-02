@@ -15,19 +15,187 @@ FAKE_SHOP_URL = "http://localhost:8080/index.html?price=39.99&stock=in"
 
 def seed_shops() -> None:
     shops = [
-        {"name": "Fake Shop", "url": "http://localhost:8080", "active": True, "trusted": True},
-        {"name": "Cardmarket", "url": None, "active": False, "trusted": True},
-        {"name": "Kuro Star", "url": None, "active": False, "trusted": True},
-        {"name": "Pikastore", "url": None, "active": False, "trusted": True},
-        {"name": "UltraJeux", "url": None, "active": False, "trusted": True},
-        {"name": "Otakuland", "url": None, "active": False, "trusted": True},
+        {
+            "name": "Fake Shop",
+            "url": "http://localhost:8080",
+            "scraper_key": "fake_shop",
+            "country": "local",
+            "type": "fake",
+            "priority": "high",
+            "difficulty": "easy",
+            "integration_status": "functional",
+            "notes": "Boutique locale de test.",
+            "active": True,
+            "trusted": True,
+        },
+        {
+            "name": "Otakuland-Manga Passion",
+            "url": "https://otakuland-mangapassion.com",
+            "scraper_key": "otakuland",
+            "country": "BE/FR",
+            "type": "tcg_specialist",
+            "priority": "high",
+            "difficulty": "medium",
+            "integration_status": "functional",
+            "notes": "Fonctionnel uniquement pour OtakulandScraper V1 : pages produit simples sans options obligatoires.",
+            "active": False,
+            "trusted": True,
+        },
+        {
+            "name": "Kuro Star",
+            "url": "https://kurostar.com",
+            "scraper_key": "not_configured",
+            "country": "FR/EU",
+            "type": "tcg_specialist",
+            "priority": "high",
+            "difficulty": "unknown",
+            "integration_status": "to_analyze",
+            "notes": None,
+            "active": False,
+            "trusted": True,
+        },
+        {
+            "name": "Pikastore",
+            "url": "https://www.pikastore.fr",
+            "scraper_key": "not_configured",
+            "country": "FR/EU",
+            "type": "tcg_specialist",
+            "priority": "high",
+            "difficulty": "unknown",
+            "integration_status": "to_analyze",
+            "notes": None,
+            "active": False,
+            "trusted": True,
+        },
+        {
+            "name": "UltraJeux",
+            "url": "https://www.ultrajeux.com",
+            "scraper_key": "not_configured",
+            "country": "FR",
+            "type": "tcg_specialist",
+            "priority": "medium",
+            "difficulty": "unknown",
+            "integration_status": "to_analyze",
+            "notes": None,
+            "active": False,
+            "trusted": True,
+        },
+        {
+            "name": "Fnac BE",
+            "url": "https://www.fr.fnac.be",
+            "scraper_key": "not_configured",
+            "country": "BE",
+            "type": "retailer",
+            "priority": "medium",
+            "difficulty": "unknown",
+            "integration_status": "to_analyze",
+            "notes": None,
+            "active": False,
+            "trusted": True,
+        },
+        {
+            "name": "Fnac FR",
+            "url": "https://www.fnac.com",
+            "scraper_key": "not_configured",
+            "country": "FR",
+            "type": "retailer",
+            "priority": "medium",
+            "difficulty": "unknown",
+            "integration_status": "to_analyze",
+            "notes": None,
+            "active": False,
+            "trusted": True,
+        },
+        {
+            "name": "Coolblue",
+            "url": "https://www.coolblue.be",
+            "scraper_key": "not_configured",
+            "country": "BE/NL",
+            "type": "retailer",
+            "priority": "low",
+            "difficulty": "unknown",
+            "integration_status": "to_analyze",
+            "notes": None,
+            "active": False,
+            "trusted": True,
+        },
+        {
+            "name": "Amazon",
+            "url": "https://www.amazon.fr",
+            "scraper_key": "not_configured",
+            "country": "EU",
+            "type": "marketplace",
+            "priority": "later",
+            "difficulty": "hard",
+            "integration_status": "later",
+            "notes": "Marketplace complexe, invitations, vendeurs tiers, anti-bot possible.",
+            "active": False,
+            "trusted": True,
+        },
+        {
+            "name": "Cardmarket",
+            "url": "https://www.cardmarket.com",
+            "scraper_key": "not_configured",
+            "country": "EU",
+            "type": "marketplace_reference",
+            "priority": "later",
+            "difficulty": "hard",
+            "integration_status": "later",
+            "notes": "Utile comme reference marche plus tard, pas pour le premier scraper.",
+            "active": False,
+            "trusted": True,
+        },
+        {
+            "name": "eBay",
+            "url": "https://www.ebay.fr",
+            "scraper_key": "not_configured",
+            "country": "global",
+            "type": "marketplace",
+            "priority": "later",
+            "difficulty": "hard",
+            "integration_status": "later",
+            "notes": "Secondaire, beaucoup de bruit, pas MVP.",
+            "active": False,
+            "trusted": True,
+        },
     ]
 
     with connect() as connection:
+        connection.execute(
+            """
+            update shops
+            set name = 'Otakuland-Manga Passion'
+            where name = 'Otakuland'
+            """
+        )
         existing_names = {shop["name"] for shop in list_shops(connection)}
         for shop in shops:
             if shop["name"] not in existing_names:
                 create_shop(connection, shop)
+            else:
+                connection.execute(
+                    """
+                    update shops
+                    set
+                      url = :url,
+                      scraper_key = :scraper_key,
+                      country = :country,
+                      type = :type,
+                      priority = :priority,
+                      difficulty = :difficulty,
+                      integration_status = :integration_status,
+                      notes = :notes,
+                      active = :active,
+                      trusted = :trusted
+                    where name = :name
+                    """,
+                    {
+                        **shop,
+                        "active": int(bool(shop["active"])),
+                        "trusted": int(bool(shop["trusted"])),
+                    },
+                )
+        connection.commit()
 
 
 def seed_demo_product() -> None:

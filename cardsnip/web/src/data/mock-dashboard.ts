@@ -130,8 +130,8 @@ export const deals: Deal[] = [
     id: "bundle-151",
     product: "Booster Bundle 151",
     region: "FR",
-    shop: "Otakuland",
-    shopMark: "OK",
+    shop: "Otakuland-Manga Passion",
+    shopMark: "OMP",
     currentPrice: "29,90 EUR",
     oldPrice: "44,90 EUR",
     discount: "-33%",
@@ -161,7 +161,7 @@ export const shops: Shop[] = [
   { id: "kuro-star", name: "Kuro Star", products: "856", lastCheck: "12:34:41", enabled: true, mark: "KS" },
   { id: "pikastore", name: "Pikastore", products: "742", lastCheck: "12:34:37", enabled: true, mark: "PK" },
   { id: "ultrajeux", name: "UltraJeux", products: "612", lastCheck: "12:34:29", enabled: true, mark: "UJ" },
-  { id: "otakuland", name: "Otakuland", products: "503", lastCheck: "12:34:21", enabled: true, mark: "OK" },
+  { id: "otakuland-mangapassion", name: "Otakuland-Manga Passion", products: "503", lastCheck: "12:34:21", enabled: true, mark: "OMP" },
 ];
 
 export const priceSeries: PriceSeries[] = [
@@ -216,11 +216,11 @@ export const priceSeries: PriceSeries[] = [
     ],
   },
   {
-    id: "bundle-151-otakuland",
+    id: "bundle-151-otakuland-mangapassion",
     productId: "bundle-151",
-    shopId: "otakuland",
+    shopId: "otakuland-mangapassion",
     product: "Booster Bundle 151",
-    shop: "Otakuland",
+    shop: "Otakuland-Manga Passion",
     targetPrice: 35,
     points: [
       { date: "23/04", price: 44.9 },

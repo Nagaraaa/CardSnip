@@ -35,6 +35,8 @@ class ProductHtmlParser(HTMLParser):
 
 
 class FakeShopScraper(BaseScraper):
+    scraper_key = "fake_shop"
+
     def scrape(self) -> ProductCheck:
         html = self._load_html()
         parser = ProductHtmlParser()

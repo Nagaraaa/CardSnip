@@ -1,0 +1,340 @@
+Resume - Dernieres mises a jour CardSnip
+
+Objectif du document
+--------------------
+
+Donner au mentor un etat clair des dernieres evolutions du projet CardSnip, principalement cote site/frontend, stabilisation locale et analyse pre-scraper.
+
+
+1. Branding frontend
+--------------------
+
+Le logo precedent avec le badge "CS" a ete retire.
+
+Avant :
+
+- badge carre "CS" dans la sidebar ;
+- badge "CS" aussi visible sur la page d'accueil.
+
+Apres :
+
+- wordmark texte "CardSnip" plus premium ;
+- animation subtile sur "Snip" ;
+- ligne lumineuse fine sous le nom ;
+- style plus moderne, plus SaaS, moins badge/gaming.
+
+Fichiers modifies :
+
+- web/src/components/cardsnip-app-shell.tsx
+- web/src/components/cardsnip-home.tsx
+- web/src/app/globals.css
+
+Verification :
+
+- npm lint : OK
+- npm build : OK
+
+
+2. Stabilisation frontend globale
+---------------------------------
+
+Deux fichiers Next.js globaux ont ete ajoutes :
+
+- web/src/app/loading.tsx
+- web/src/app/error.tsx
+
+But :
+
+- afficher un etat de chargement propre ;
+- eviter un crash silencieux si une route React/Next rencontre une erreur ;
+- proposer un bouton "Reessayer" en cas d'erreur interface.
+
+Impact :
+
+- meilleure robustesse UX ;
+- pas de nouvelle page fonctionnelle ;
+- pas de modification d'architecture.
+
+
+3. API locale stabilisee
+------------------------
+
+L'API FastAPI locale a ete amelioree sans changer son role.
+
+Nom actuel :
+
+CardSnip Local API
+
+Role :
+
+API locale de developpement qui relie :
+
+Next.js -> FastAPI -> SQLite <- scraper Python
+
+Changements recents :
+
+- pagination basique ajoutee sur les endpoints de liste ;
+- endpoints 404 propres ajoutes ;
+- validation plus claire lors de la creation d'un produit suivi ;
+- erreurs API moins opaques.
+
+Endpoints ameliores :
+
+- GET /products?limit=&offset=
+- GET /shops?limit=&offset=
+- GET /tracked-products?limit=&offset=
+- GET /observations?limit=&offset=
+- GET /alerts?limit=&offset=
+
+Endpoints de detail ajoutes :
+
+- GET /products/{product_id}
+- GET /shops/{shop_id}
+- GET /tracked-products/{tracked_product_id}
+
+Exemples de comportement verifie :
+
+- GET /products?limit=1&offset=0 -> 200
+- GET /products/999999 -> 404 "Produit introuvable"
+- GET /shops/999999 -> 404 "Boutique introuvable"
+
+Fichiers modifies :
+
+- scraper/api.py
+- scraper/storage/repositories.py
+
+
+4. SQLite / schema
+------------------
+
+Des index SQL ont ete ajoutes pour eviter des degradations de performance quand les donnees augmenteront.
+
+Index ajoutes :
+
+- tracked_products_product_idx
+- tracked_products_shop_idx
+- price_observations_stock_idx
+- alerts_tracked_type_idx
+
+Index deja presents et conserves :
+
+- tracked_products_active_idx
+- price_observations_tracked_checked_idx
+- alerts_created_idx
+
+Fichier modifie :
+
+- scraper/storage/schema.sql
+
+
+5. Hygiene Python / Git
+-----------------------
+
+Des dossiers __pycache__ etaient presents localement apres execution des tests Python.
+
+Etat :
+
+- ils etaient ignores par Git ;
+- ils ont ete supprimes localement ;
+- le .gitignore racine couvrait deja __pycache__ et *.pyc.
+
+Un .gitignore local a aussi ete ajoute dans scraper/ pour rendre la protection explicite.
+
+Fichier ajoute :
+
+- scraper/.gitignore
+
+Il ignore notamment :
+
+- __pycache__/
+- *.py[cod]
+- .pytest_cache/
+- .venv/
+- *.log
+
+
+6. Python installe et operationnel
+----------------------------------
+
+Python a ete installe localement pour pouvoir executer les scripts du backend/scraper.
+
+Version :
+
+Python 3.13.13
+
+Chemin :
+
+C:\Users\Nagara\AppData\Local\Programs\Python\Python313\python.exe
+
+pip :
+
+pip 26.0.1
+
+Dependances installees depuis scraper/requirements.txt :
+
+- fastapi
+- uvicorn
+
+Note :
+
+Dans certains terminaux, la commande courte "python" peut necessiter une nouvelle ouverture de terminal pour que le PATH soit recharge.
+
+
+7. Analyse Otakuland-Manga Passion
+----------------------------------
+
+Correction importante :
+
+Le bon site candidat n'est pas otakuland.fr.
+
+Le site pertinent est :
+
+https://otakuland-mangapassion.com
+
+La boutique a ete renommee dans la logique locale :
+
+Otakuland-Manga Passion
+
+Etat DB verifie :
+
+- name : Otakuland-Manga Passion
+- url : https://otakuland-mangapassion.com
+- country : BE/FR
+- integration_status : to_analyze
+- scraper_key : not_configured
+
+Analyse pre-scraper realisee :
+
+- URL produit test Pokemon sealed trouvee ;
+- snapshot HTML brut sauvegarde ;
+- robots.txt consulte ;
+- CGV/contact/donnees personnelles consultes ;
+- selecteurs candidats identifies ;
+- aucun scraper reel code.
+
+URL produit test :
+
+https://otakuland-mangapassion.com/2208731-Pokemon-JCC-ETB-Coffret-Dresseur-d-Elite-Mega-Evolution-ME04-Chaos-Ascendant-FR
+
+Snapshot HTML :
+
+docs/shop-analysis/snapshots/otakuland-product-sample.html
+
+Decision :
+
+a revoir
+
+Raison :
+
+- titre, prix et stock sont detectables ;
+- page produit accessible sans headless browser ;
+- robots.txt autorise / ;
+- mais il faut verifier une page en stock et comparer plusieurs fiches avant de coder un scraper.
+
+Fichier principal :
+
+- docs/shop-analysis/otakuland.md
+
+
+8. Tests et validations recentes
+--------------------------------
+
+Tests Python unitaires :
+
+OK - 3 tests
+
+Build frontend :
+
+OK
+
+Lint frontend :
+
+OK
+
+Test end-to-end local :
+
+OK
+
+Flux valide :
+
+fake-shop -> scraper -> SQLite -> FastAPI -> dashboard/API
+
+Scenarios E2E verifies :
+
+1. price=39.99&stock=in
+
+- observation creee ;
+- stock in_stock ;
+- alertes creees si conditions remplies.
+
+2. price=99.99&stock=out
+
+- observation creee ;
+- stock out_of_stock ;
+- pas de nouvelle alerte deal.
+
+
+9. Ce qui n'a pas ete fait
+--------------------------
+
+Aucune des actions suivantes n'a ete faite :
+
+- pas de scraper Otakuland-Manga Passion ;
+- pas de vraie boutique integree ;
+- pas de Supabase ;
+- pas d'auth ;
+- pas de Stripe ;
+- pas de Docker ;
+- pas de worker ;
+- pas de nouvelle page frontend ;
+- pas de refonte massive d'architecture.
+
+
+10. Limites restantes
+---------------------
+
+Composants frontend encore gros :
+
+- web/src/components/cardsnip-dashboard.tsx
+- web/src/components/pages/catalogue-page.tsx
+
+Ils fonctionnent, mais leur taille reduit la maintenabilite.
+
+Recommandation :
+
+Faire une passe separee de refactorisation douce :
+
+- extraire panels ;
+- extraire formulaires/modales ;
+- garder les pages comme orchestrateurs ;
+- ne pas changer le design en meme temps.
+
+Autre limite :
+
+Otakuland-Manga Passion n'est pas encore pret a coder en scraper reel.
+
+Il faut d'abord :
+
+- trouver une page Pokemon en stock ;
+- comparer 2 ou 3 pages ;
+- verifier la stabilite des selecteurs ;
+- clarifier le cadre d'autorisation pour un usage futur SaaS.
+
+
+11. Etat actuel resume
+----------------------
+
+CardSnip est maintenant un MVP local stable avec :
+
+- frontend Next.js fonctionnel ;
+- API FastAPI locale ;
+- SQLite ;
+- scraper Fake Shop fonctionnel ;
+- tests Python OK ;
+- test end-to-end OK ;
+- build frontend OK ;
+- meilleure hygiene Git/Python ;
+- branding frontend ameliore ;
+- analyse pre-scraper Otakuland-Manga Passion documentee.
+
+La prochaine etape recommandee est de stabiliser/refactoriser doucement les gros composants frontend ou de poursuivre l'analyse boutique sur une page Otakuland-Manga Passion en stock, mais sans coder de scraper reel avant validation.

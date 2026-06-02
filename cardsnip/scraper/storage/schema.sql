@@ -14,6 +14,13 @@ create table if not exists shops (
   id integer primary key autoincrement,
   name text not null unique,
   url text,
+  scraper_key text not null default 'not_configured',
+  country text not null default 'unknown',
+  type text not null default 'tcg_specialist',
+  priority text not null default 'medium',
+  difficulty text not null default 'unknown',
+  integration_status text not null default 'to_analyze',
+  notes text,
   active integer not null default 1,
   trusted integer not null default 1,
   created_at text not null default current_timestamp
@@ -50,6 +57,10 @@ create table if not exists alerts (
 );
 
 create index if not exists tracked_products_active_idx on tracked_products(active);
+create index if not exists tracked_products_product_idx on tracked_products(product_id);
+create index if not exists tracked_products_shop_idx on tracked_products(shop_id);
 create index if not exists price_observations_tracked_checked_idx
   on price_observations(tracked_product_id, checked_at desc);
+create index if not exists price_observations_stock_idx on price_observations(stock_status);
 create index if not exists alerts_created_idx on alerts(created_at desc);
+create index if not exists alerts_tracked_type_idx on alerts(tracked_product_id, type);

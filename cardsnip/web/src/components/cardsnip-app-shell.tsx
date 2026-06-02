@@ -15,6 +15,19 @@ const navItems = [
   { label: "Compte", icon: "AD", href: "/settings" },
 ];
 
+function BrandWordmark({ compact = false }: { compact?: boolean }) {
+  return (
+    <span
+      className={`cardsnip-wordmark relative inline-flex items-baseline font-black tracking-tight text-white ${
+        compact ? "text-[1.35rem]" : "text-2xl"
+      }`}
+    >
+      <span>Card</span>
+      <span className="cardsnip-wordmark-accent ml-0.5">Snip</span>
+    </span>
+  );
+}
+
 export function AppPanel({
   children,
   className = "",
@@ -49,13 +62,12 @@ export function CardSnipAppShell({
       <div className="flex min-h-screen flex-col lg:flex-row">
         <aside className="border-b border-white/[0.08] bg-[#090b12]/95 p-4 lg:fixed lg:inset-y-0 lg:w-60 lg:border-b-0 lg:border-r">
           <div className="flex h-full flex-col gap-6">
-            <Link href="/dashboard" className="flex items-center gap-3 px-1">
-              <div className="grid h-10 w-10 place-items-center rounded-xl border border-violet-400/25 bg-violet-400/10 text-sm font-black text-violet-200">
-                CS
-              </div>
-              <div className="text-xl font-black tracking-normal">
-                Card<span className="text-violet-300">Snip</span>
-              </div>
+            <Link
+              href="/dashboard"
+              className="group flex min-h-10 items-center px-1"
+              aria-label="CardSnip dashboard"
+            >
+              <BrandWordmark compact />
             </Link>
 
             <nav className="grid gap-1.5">

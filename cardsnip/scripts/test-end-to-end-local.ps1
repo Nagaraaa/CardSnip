@@ -4,6 +4,25 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $ScraperDir = Join-Path $ProjectRoot "scraper"
 $FakeShopUrl = "http://localhost:8080/index.html?price=39.99&stock=in"
 $ApiBaseUrl = "http://localhost:8000"
+$LocalPython = Join-Path $env:LOCALAPPDATA "Programs\Python\Python313\python.exe"
+
+function Get-PythonCommand {
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        return "python"
+    }
+
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        return "py"
+    }
+
+    if (Test-Path $LocalPython) {
+        return $LocalPython
+    }
+
+    throw "Python est introuvable. Installe Python ou ajoute-le au PATH Windows."
+}
+
+$PythonCommand = Get-PythonCommand
 
 function Write-Step {
     param([string] $Message)
@@ -18,9 +37,15 @@ function Read-Json {
     return $response.Content | ConvertFrom-Json
 }
 
+function Read-JsonArray {
+    param([string] $Url)
+
+    return @(Read-Json $Url | ForEach-Object { $_ })
+}
+
 Write-Step "Initialisation SQLite"
 Push-Location $ScraperDir
-python scripts\init_db.py
+& $PythonCommand scripts\init_db.py
 Pop-Location
 
 Write-Step "Verification fake shop"
@@ -37,7 +62,7 @@ if ($health.status -ne "ok") {
 
 Write-Step "Scenario A - prix bas et en stock"
 Push-Location $ScraperDir
-python -c "from storage.database import connect; c=connect(); c.execute('update tracked_products set source_url=? where id=1', ('http://localhost:8080/index.html?price=39.99&stock=in',)); c.commit(); c.close()"
+& $PythonCommand -c "from storage.database import connect; c=connect(); c.execute('update tracked_products set source_url=? where id=1', ('http://localhost:8080/index.html?price=39.99&stock=in',)); c.commit(); c.close()"
 Pop-Location
 
 $runA = Read-Json "$ApiBaseUrl/scraper/run" "POST"
@@ -45,7 +70,7 @@ if ($runA.errors -ne 0 -or $runA.observations -lt 1) {
     throw "Scenario A KO: $($runA | ConvertTo-Json -Compress)"
 }
 
-$latestA = @(Read-Json "$ApiBaseUrl/observations/latest")
+$latestA = Read-JsonArray "$ApiBaseUrl/observations/latest"
 $demoA = $latestA | Where-Object { $_.tracked_product_id -eq 1 } | Select-Object -First 1
 if (-not $demoA -or [double]$demoA.price -ne 39.99 -or $demoA.stock_status -ne "in_stock") {
     throw "Observation scenario A incorrecte: $($latestA | ConvertTo-Json -Compress)"
@@ -53,7 +78,7 @@ if (-not $demoA -or [double]$demoA.price -ne 39.99 -or $demoA.stock_status -ne "
 
 Write-Step "Scenario B - prix haut et rupture"
 Push-Location $ScraperDir
-python -c "from storage.database import connect; c=connect(); c.execute('update tracked_products set source_url=? where id=1', ('http://localhost:8080/index.html?price=99.99&stock=out',)); c.commit(); c.close()"
+& $PythonCommand -c "from storage.database import connect; c=connect(); c.execute('update tracked_products set source_url=? where id=1', ('http://localhost:8080/index.html?price=99.99&stock=out',)); c.commit(); c.close()"
 Pop-Location
 
 $runB = Read-Json "$ApiBaseUrl/scraper/run" "POST"
@@ -61,7 +86,7 @@ if ($runB.errors -ne 0 -or $runB.observations -lt 1) {
     throw "Scenario B KO: $($runB | ConvertTo-Json -Compress)"
 }
 
-$latestB = @(Read-Json "$ApiBaseUrl/observations/latest")
+$latestB = Read-JsonArray "$ApiBaseUrl/observations/latest"
 $demoB = $latestB | Where-Object { $_.tracked_product_id -eq 1 } | Select-Object -First 1
 if (-not $demoB -or [double]$demoB.price -ne 99.99 -or $demoB.stock_status -ne "out_of_stock") {
     throw "Observation scenario B incorrecte: $($latestB | ConvertTo-Json -Compress)"
@@ -69,7 +94,7 @@ if (-not $demoB -or [double]$demoB.price -ne 99.99 -or $demoB.stock_status -ne "
 
 Write-Step "Restauration scenario demo"
 Push-Location $ScraperDir
-python -c "from storage.database import connect; c=connect(); c.execute('update tracked_products set source_url=? where id=1', ('http://localhost:8080/index.html?price=39.99&stock=in',)); c.commit(); c.close()"
+& $PythonCommand -c "from storage.database import connect; c=connect(); c.execute('update tracked_products set source_url=? where id=1', ('http://localhost:8080/index.html?price=39.99&stock=in',)); c.commit(); c.close()"
 Pop-Location
 
 Write-Host ""

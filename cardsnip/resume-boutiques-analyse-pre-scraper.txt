@@ -1,0 +1,481 @@
+Resume - Boutiques CardSnip et fiches d'analyse pre-scraper
+
+Objectif de cette passe
+-----------------------
+
+Preparer proprement la vraie liste de boutiques CardSnip et commencer l'analyse documentaire, sans coder de vraie boutique et sans modifier l'architecture validee.
+
+Contraintes respectees :
+
+- pas de nouvelle architecture ;
+- pas de nouvelle page ;
+- pas de Supabase ;
+- pas d'auth ;
+- pas de Stripe ;
+- pas de Docker ;
+- pas de Celery ;
+- pas de worker ;
+- pas d'Amazon/Cardmarket/eBay scraper ;
+- pas de vrai scraper Otakuland/Kuro Star ;
+- UI modifiee uniquement sur la page Boutiques pour afficher les nouveaux champs.
+
+
+1. Table shops enrichie
+-----------------------
+
+Fichiers modifies :
+
+- scraper/storage/schema.sql
+- scraper/storage/database.py
+- scraper/storage/repositories.py
+- scraper/api.py
+- web/src/types/local-api.ts
+
+Nouveaux champs ajoutes a shops :
+
+- country
+- type
+- priority
+- difficulty
+- integration_status
+- notes
+
+Champ existant conserve :
+
+- scraper_key
+
+Valeurs prevues :
+
+integration_status :
+
+- functional
+- not_configured
+- to_analyze
+- in_progress
+- disabled
+- later
+
+type :
+
+- fake
+- tcg_specialist
+- retailer
+- marketplace
+- marketplace_reference
+
+difficulty :
+
+- easy
+- medium
+- hard
+- unknown
+
+priority :
+
+- high
+- medium
+- low
+- later
+
+
+2. Migration legere compatible DB existante
+-------------------------------------------
+
+Fichier modifie :
+
+scraper/storage/database.py
+
+Ajout :
+
+ensure_schema_compatibility() ajoute automatiquement les colonnes manquantes a shops si la base SQLite existe deja.
+
+Objectif :
+
+Eviter de supprimer manuellement data/cardsnip.local.sqlite3.
+
+
+3. Seed boutiques mis a jour
+----------------------------
+
+Fichier modifie :
+
+scraper/scripts/init_db.py
+
+Boutiques seed actuelles :
+
+Fake Shop :
+
+- scraper_key : fake_shop
+- country : local
+- type : fake
+- priority : high
+- difficulty : easy
+- integration_status : functional
+
+Otakuland :
+
+- scraper_key : not_configured
+- country : FR
+- type : tcg_specialist
+- priority : high
+- difficulty : unknown
+- integration_status : to_analyze
+
+Kuro Star :
+
+- scraper_key : not_configured
+- country : FR/EU
+- type : tcg_specialist
+- priority : high
+- difficulty : unknown
+- integration_status : to_analyze
+
+Pikastore :
+
+- scraper_key : not_configured
+- country : FR/EU
+- type : tcg_specialist
+- priority : high
+- difficulty : unknown
+- integration_status : to_analyze
+
+UltraJeux :
+
+- scraper_key : not_configured
+- country : FR
+- type : tcg_specialist
+- priority : medium
+- difficulty : unknown
+- integration_status : to_analyze
+
+Fnac BE :
+
+- scraper_key : not_configured
+- country : BE
+- type : retailer
+- priority : medium
+- difficulty : unknown
+- integration_status : to_analyze
+
+Fnac FR :
+
+- scraper_key : not_configured
+- country : FR
+- type : retailer
+- priority : medium
+- difficulty : unknown
+- integration_status : to_analyze
+
+Coolblue :
+
+- scraper_key : not_configured
+- country : BE/NL
+- type : retailer
+- priority : low
+- difficulty : unknown
+- integration_status : to_analyze
+
+Amazon :
+
+- scraper_key : not_configured
+- country : EU
+- type : marketplace
+- priority : later
+- difficulty : hard
+- integration_status : later
+- notes : marketplace complexe, invitations, vendeurs tiers, anti-bot possible
+
+Cardmarket :
+
+- scraper_key : not_configured
+- country : EU
+- type : marketplace_reference
+- priority : later
+- difficulty : hard
+- integration_status : later
+- notes : utile comme reference marche plus tard, pas pour le premier scraper
+
+eBay :
+
+- scraper_key : not_configured
+- country : global
+- type : marketplace
+- priority : later
+- difficulty : hard
+- integration_status : later
+- notes : secondaire, beaucoup de bruit, pas MVP
+
+
+4. API /shops mise a jour
+-------------------------
+
+Fichiers modifies :
+
+- scraper/api.py
+- scraper/storage/repositories.py
+
+GET /shops retourne maintenant :
+
+- id
+- name
+- url
+- scraper_key
+- country
+- type
+- priority
+- difficulty
+- integration_status
+- notes
+- active
+- trusted
+- created_at
+
+POST /shops accepte aussi ces champs, avec valeurs par defaut.
+
+
+5. Types frontend mis a jour
+----------------------------
+
+Fichier modifie :
+
+web/src/types/local-api.ts
+
+ApiShop contient maintenant :
+
+- country
+- type
+- priority
+- difficulty
+- integration_status
+- notes
+
+Les nouveaux champs sont optionnels cote frontend pour ne pas casser si une ancienne reponse API arrive.
+
+
+6. Page Boutiques enrichie sans refonte
+---------------------------------------
+
+Fichier modifie :
+
+web/src/components/pages/shops-page.tsx
+
+Changements :
+
+- la page tente de charger les boutiques depuis GET /shops ;
+- si l'API est disponible, elle affiche les donnees SQLite ;
+- si l'API est indisponible, elle garde le fallback mock existant ;
+- affichage ajoute :
+  - pays ;
+  - type ;
+  - priorite ;
+  - difficulte ;
+  - statut integration ;
+  - scraper_key ;
+  - notes si presentes.
+
+Objectif :
+
+Comprendre rapidement quelles boutiques sont fonctionnelles, a analyser ou prevues plus tard.
+
+
+7. Fiches d'analyse technique creees
+------------------------------------
+
+Dossier ajoute :
+
+docs/shop-analysis/
+
+Fichiers ajoutes :
+
+- docs/shop-analysis/otakuland.md
+- docs/shop-analysis/kurostar.md
+
+Chaque fiche contient :
+
+- nom ;
+- URL du site ;
+- type ;
+- pays ;
+- priorite ;
+- difficulte estimee ;
+- URL produit test a renseigner plus tard ;
+- elements a verifier :
+  - prix ;
+  - stock ;
+  - titre produit ;
+  - structure HTML ;
+  - variations produit ;
+  - pagination ;
+  - anti-bot ;
+  - conditions d'utilisation ;
+- decision :
+  - pret a coder ;
+  - a eviter ;
+  - a revoir.
+
+Statut actuel des fiches :
+
+- Otakuland : a revoir
+- Kuro Star : a revoir
+
+Important :
+
+Aucun scraper reel n'a ete code.
+
+
+8. Verification effectuee
+-------------------------
+
+Commandes lancees :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\scraper"
+python scripts\init_db.py
+
+Resultat :
+
+OK
+
+
+Tests Python :
+
+python -m unittest discover -s tests -p "test_*.py" -v
+
+Resultat :
+
+OK
+
+
+Compilation Python :
+
+python -m py_compile api.py main.py storage\database.py storage\repositories.py services\tracked_check_service.py scrapers\base.py scrapers\fake_shop.py scrapers\registry.py
+
+Resultat :
+
+OK
+
+
+Lint frontend :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip\web"
+npm.cmd run lint
+
+Resultat :
+
+OK
+
+
+Build frontend :
+
+npm.cmd run build
+
+Resultat :
+
+OK
+
+Note :
+
+Un bug TypeScript mineur a ete corrige dans shops-page.tsx :
+
+- products mocke etait une string ;
+- le type local attendait un number ;
+- correction : products?: string.
+
+
+Test end-to-end local :
+
+cd "C:\Users\Nagara\Documents\New project\cardsnip"
+.\scripts\test-end-to-end-local.ps1
+
+Resultat :
+
+OK
+
+Flux valide :
+
+fake-shop -> scraper -> SQLite -> FastAPI -> dashboard
+
+
+Verification API /shops :
+
+GET http://localhost:8000/shops
+
+Resultat :
+
+OK
+
+Les boutiques retournent bien les nouveaux champs.
+
+
+Verification page Boutiques :
+
+GET http://localhost:3000/shops
+
+Resultat :
+
+OK, status 200.
+
+
+Etat final
+----------
+
+La base shops est maintenant plus serieuse.
+
+Seule Fake Shop est fonctionnelle :
+
+- integration_status = functional
+- scraper_key = fake_shop
+
+Les boutiques suivantes sont preparees mais non scrapees :
+
+- Otakuland
+- Kuro Star
+- Pikastore
+- UltraJeux
+- Fnac BE
+- Fnac FR
+- Coolblue
+
+Les marketplaces restent pour plus tard :
+
+- Amazon
+- Cardmarket
+- eBay
+
+Statut :
+
+- Amazon/Cardmarket/eBay restent en later ;
+- aucune vraie boutique n'est branchee ;
+- le flux fake shop reste stable.
+
+
+Ce qui n'a PAS ete fait
+-----------------------
+
+- pas de scraper Otakuland ;
+- pas de scraper Kuro Star ;
+- pas de scraper Pikastore ;
+- pas de scraper Fnac ;
+- pas d'Amazon ;
+- pas de Cardmarket ;
+- pas d'eBay ;
+- pas de vraie integration boutique ;
+- pas de nouvelle page ;
+- pas de Supabase ;
+- pas de changement d'architecture.
+
+
+Prochaine etape recommandee
+---------------------------
+
+Ne pas coder de vrai scraper tout de suite.
+
+Prochaine etape saine :
+
+1. Choisir une seule URL produit test Otakuland ou Kuro Star.
+2. Sauvegarder/analyser un snapshot HTML.
+3. Verifier les conditions d'utilisation.
+4. Decider si la boutique est :
+   - prete a coder ;
+   - a eviter ;
+   - a revoir.
+5. Seulement apres validation, creer un scraper dedie via BaseScraper + registry.

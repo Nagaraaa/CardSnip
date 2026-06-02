@@ -1,0 +1,266 @@
+Resume - Otakuland-Manga Passion V1 functional
+
+Objectif
+--------
+
+Finaliser la validation du premier scraper reel CardSnip :
+
+Otakuland-Manga Passion
+
+Perimetre :
+
+- pages produit simples uniquement ;
+- aucune option obligatoire ;
+- aucune variante ;
+- aucun crawl catalogue ;
+- aucun navigateur headless ;
+- aucune action panier/compte/checkout.
+
+
+Statut final
+------------
+
+integration_status recommande et applique :
+
+functional
+
+Note obligatoire :
+
+Fonctionnel uniquement pour OtakulandScraper V1 : pages produit simples sans options obligatoires.
+
+
+Configuration boutique
+----------------------
+
+Boutique :
+
+Otakuland-Manga Passion
+
+URL :
+
+https://otakuland-mangapassion.com
+
+Configuration :
+
+- scraper_key : otakuland
+- integration_status : functional
+- difficulty : medium
+- priority : high
+- notes : Fonctionnel uniquement pour OtakulandScraper V1 : pages produit simples sans options obligatoires.
+
+
+Fichiers principaux
+-------------------
+
+Scraper :
+
+- scraper/scrapers/otakuland.py
+
+Registry :
+
+- scraper/scrapers/registry.py
+
+Tests :
+
+- scraper/tests/test_otakuland_scraper.py
+
+Seed :
+
+- scraper/scripts/init_db.py
+
+Documentation :
+
+- docs/shop-analysis/otakuland.md
+
+
+Comportement du scraper
+-----------------------
+
+Le scraper extrait :
+
+- titre produit ;
+- prix ;
+- stock ;
+- source_url ;
+- checked_at ;
+- target_price.
+
+Il retourne :
+
+ProductCheck
+
+Selecteurs utilises :
+
+Titre :
+
+main.ProductPage h1[itemprop="name"]
+
+Prix :
+
+main.ProductPage .Price-value[itemprop="price"][content]
+
+Stock :
+
+main.ProductPage .ProductStock-info
+
+Stock rupture :
+
+- .ProductStock-info.out_of_stock
+- data-sold-out="true"
+
+Stock positif :
+
+- .ProductStock-info.in_stock
+- texte "En stock"
+
+
+Options obligatoires
+--------------------
+
+Si une page contient :
+
+isOptionRequired: true
+
+Le scraper refuse proprement avec :
+
+Page Otakuland non supportee en V1 : options obligatoires detectees.
+
+Raison :
+
+Les variantes peuvent avoir des prix et stocks differents.
+La V1 ne doit pas deviner.
+
+
+URLs testees
+------------
+
+ETB rupture :
+
+https://otakuland-mangapassion.com/2208731-Pokemon-JCC-ETB-Coffret-Dresseur-d-Elite-Mega-Evolution-ME04-Chaos-Ascendant-FR
+
+Tripack en stock :
+
+https://otakuland-mangapassion.com/2208735-Pokemon-JCC-Tripack-Reptincel-Mega-Evolution-ME04-Chaos-Ascendant-FR
+
+Booster avec options obligatoires :
+
+https://otakuland-mangapassion.com/2208743-Pokemon-JCC-Booster-Mega-Evolution-ME04-Chaos-Ascendant-FR
+
+
+Validation flux complet
+-----------------------
+
+Un tracked_product Otakuland-Manga Passion a ete cree via API locale avec :
+
+- source_url : URL Tripack en stock ;
+- target_price : 22 ;
+- active : true.
+
+Flux valide :
+
+tracked_products
+-> shop.scraper_key = otakuland
+-> registry
+-> OtakulandScraper
+-> ProductCheck
+-> price_observations
+-> alerts
+-> FastAPI
+-> dashboard / products
+
+Observation creee :
+
+- price : 19.99
+- stock_status : in_stock
+- source_url : URL Tripack Otakuland-Manga Passion
+
+Alertes creees au premier run :
+
+- price_below_target
+- in_stock
+
+Deduplication :
+
+Les runs identiques suivants ne recreent pas les memes alertes SQLite pour ce tracked_product.
+
+
+Tests effectues
+---------------
+
+Tests unitaires Python :
+
+OK - 7 tests
+
+Compilation Python :
+
+OK
+
+Test end-to-end local :
+
+OK
+
+npm lint :
+
+OK
+
+npm build :
+
+OK
+
+Pages frontend :
+
+- /products : 200
+- /dashboard : 200
+
+
+Bugs corriges pendant validation
+--------------------------------
+
+1. /observations/latest
+
+Probleme :
+
+La requete pouvait renvoyer plusieurs observations pour un meme tracked_product si plusieurs checks partageaient le meme timestamp.
+
+Correction :
+
+Selection deterministe via max(id) par tracked_product_id.
+
+2. test-end-to-end-local.ps1
+
+Probleme :
+
+PowerShell pouvait mal manipuler les tableaux JSON retournes par /observations/latest.
+
+Correction :
+
+Ajout d'une fonction Read-JsonArray pour aplatir proprement les reponses tableau.
+
+
+Limites restantes
+-----------------
+
+- pas de support des options/variantes ;
+- pas de crawl catalogue ;
+- pas de recuperation automatique d'images ;
+- pas de recherche interne ;
+- pas de pagination boutique ;
+- pas de scheduler ;
+- pas d'autorisation commerciale confirmee pour usage SaaS public.
+
+
+Conclusion
+----------
+
+Otakuland-Manga Passion peut etre considere functional pour le perimetre V1 limite.
+
+Le statut ne signifie pas :
+
+- scraper universel ;
+- support des variantes ;
+- support catalogue ;
+- usage SaaS public autorise.
+
+Il signifie :
+
+CardSnip sait suivre une URL produit simple Otakuland-Manga Passion, extraire prix/stock, ecrire une observation SQLite, generer les alertes attendues et exposer le resultat via l'API/dashboard.
