@@ -732,6 +732,51 @@ La creation ecrit dans `tracked_products`.
 
 Si l'API n'est pas disponible, la page garde son fallback localStorage, mais la creation de suivi serveur demande l'API locale.
 
+### Ajouter un suivi Otakuland-Manga Passion V1
+
+Otakuland-Manga Passion est disponible via :
+
+```txt
+scraper_key = otakuland
+integration_status = functional
+```
+
+Perimetre strict :
+
+- pages produit simples uniquement ;
+- pas d'options obligatoires ;
+- pas de variantes ;
+- pas de crawl catalogue ;
+- pas de bouton panier comme source fiable de stock.
+
+Depuis `/catalogue` :
+
+1. choisir ou creer un produit catalogue ;
+2. cliquer sur `Creer un suivi` ;
+3. choisir `Otakuland-Manga Passion` ;
+4. renseigner une URL produit simple Otakuland ;
+5. definir une target price ;
+6. laisser le suivi actif ;
+7. lancer ensuite `POST /scraper/run`.
+
+URL test validee :
+
+```txt
+https://otakuland-mangapassion.com/2208735-Pokemon-JCC-Tripack-Reptincel-Mega-Evolution-ME04-Chaos-Ascendant-FR
+```
+
+Target price de test :
+
+```txt
+22
+```
+
+Plus de details API :
+
+```txt
+docs/api/local-api.md
+```
+
 ### Produits surveilles
 
 La page `/products` tente de lire :
@@ -756,7 +801,7 @@ python main.py
 Comportement :
 
 1. lit les `tracked_products` actifs ;
-2. scrape chaque `source_url` avec `FakeShopScraper` ;
+2. scrape chaque `source_url` avec le scraper lie a `shops.scraper_key` ;
 3. ecrit une ligne dans `price_observations` ;
 4. cree une alerte dans `alerts` si le prix est sous la target price ou si un retour en stock est detecte ;
 5. garde aussi les alertes console existantes.
