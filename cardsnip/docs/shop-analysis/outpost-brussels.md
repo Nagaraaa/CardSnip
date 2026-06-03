@@ -341,6 +341,7 @@ outpost_brussels
 Implementation :
 
 - fichier scraper : `scraper/scrapers/outpost_brussels.py` ;
+- base commune : `scraper/scrapers/shopify_product.py` ;
 - registry : `SCRAPER_REGISTRY["outpost_brussels"] = OutpostBrusselsScraper` ;
 - tests : `scraper/tests/test_outpost_brussels_scraper.py` ;
 - statut seed : `integration_status = functional`.
@@ -352,3 +353,10 @@ Note obligatoire :
 ```txt
 Fonctionnel uniquement pour OutpostBrusselsScraper V1 : pages produit Shopify simples, parsing JSON-LD prioritaire, pas de crawl catalogue.
 ```
+
+Refactor Shopify :
+
+- `OutpostBrusselsScraper` herite maintenant de `ShopifyProductScraper` ;
+- le comportement externe reste `scraper_key = outpost_brussels` ;
+- aucune nouvelle boutique Shopify n'est branchee dans cette passe ;
+- la base commune servira uniquement apres analyse et validation d'une autre boutique Shopify.

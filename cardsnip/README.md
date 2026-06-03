@@ -247,7 +247,7 @@ Sources fonctionnelles aujourd'hui :
 
 Source BE-first validee en V1 :
 
-- Outpost Brussels : scraper V1 `outpost_brussels` fonctionnel uniquement pour pages produit Shopify simples, parsing JSON-LD prioritaire, pas de crawl catalogue.
+- Outpost Brussels : scraper V1 `outpost_brussels` fonctionnel uniquement pour pages produit Shopify simples, parsing JSON-LD prioritaire, pas de crawl catalogue. Il reutilise maintenant la base commune `ShopifyProductScraper`.
 
 Important :
 
@@ -694,6 +694,37 @@ Kuro Star                -> not_configured
 ```
 
 `not_configured` signifie volontairement : boutique visible dans le prototype, mais aucun scraper branche.
+
+### Base Shopify reutilisable
+
+Le fichier :
+
+```txt
+scraper/scrapers/shopify_product.py
+```
+
+contient `ShopifyProductScraper`, une base interne pour les pages produit Shopify simples.
+
+Elle gere :
+
+- titre via JSON-LD Product `name`, fallback `main h1` ;
+- prix via JSON-LD `offers.price`, fallback `meta[property="og:price:amount"]` ;
+- stock via JSON-LD `offers.availability` ;
+- `InStock` et `PreOrder` comme disponible ;
+- `OutOfStock` comme rupture ;
+- fallbacks legers via `pickup-availability` et `button[name="add"]`.
+
+Elle ne gere pas :
+
+- crawl catalogue ;
+- recherche interne ;
+- panier ;
+- checkout ;
+- comptes utilisateur ;
+- navigateur headless ;
+- contournement anti-bot.
+
+Cette classe n'a pas de `scraper_key` public dans le registry. Chaque boutique Shopify validee doit garder son scraper dedie, par exemple `OutpostBrusselsScraper`, pour conserver des notes, limites et tests propres par boutique.
 
 ### Statut Otakuland-Manga Passion
 
