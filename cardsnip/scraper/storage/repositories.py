@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import sqlite3
 from typing import Any
 
@@ -69,6 +70,121 @@ def list_shops(connection: sqlite3.Connection, limit: int = 100, offset: int = 0
         (limit, offset),
     ).fetchall()
     return [row_to_dict(row) for row in rows]
+
+
+def parse_sqlite_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+
+    normalized = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        try:
+            parsed = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def get_shop_health_status(shop: dict[str, Any]) -> str:
+    scraper_key = shop.get("scraper_key") or "not_configured"
+    if scraper_key == "not_configured":
+        return "not_configured"
+    if shop.get("last_error"):
+        return "broken"
+    if shop.get("last_checked_at") is None:
+        return "unknown"
+    if shop.get("last_price") is None or shop.get("last_stock_status") is None:
+        return "degraded"
+
+    last_checked_at = parse_sqlite_datetime(shop.get("last_checked_at"))
+    if last_checked_at is None:
+        return "degraded"
+
+    if datetime.now(timezone.utc) - last_checked_at > timedelta(days=7):
+        return "degraded"
+    return "healthy"
+
+
+def list_shop_statuses(connection: sqlite3.Connection, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        select
+          s.id as shop_id,
+          s.name,
+          s.url,
+          s.scraper_key,
+          s.country,
+          s.type,
+          s.priority,
+          s.difficulty,
+          s.integration_status,
+          s.notes,
+          s.active,
+          s.trusted,
+          s.created_at,
+          latest.checked_at as last_checked_at,
+          latest.checked_at as last_success_at,
+          latest.price as last_price,
+          latest.stock_status as last_stock_status,
+          coalesce(obs_counts.recent_observations_count, 0) as recent_observations_count,
+          coalesce(alert_counts.recent_alerts_count, 0) as recent_alerts_count,
+          null as last_error
+        from shops s
+        left join (
+          select
+            tp.shop_id,
+            po.checked_at,
+            po.price,
+            po.stock_status
+          from price_observations po
+          join tracked_products tp on tp.id = po.tracked_product_id
+          join (
+            select tp_inner.shop_id, max(po_inner.id) as latest_observation_id
+            from price_observations po_inner
+            join tracked_products tp_inner on tp_inner.id = po_inner.tracked_product_id
+            group by tp_inner.shop_id
+          ) latest_ids
+            on latest_ids.latest_observation_id = po.id
+        ) latest
+          on latest.shop_id = s.id
+        left join (
+          select tp.shop_id, count(*) as recent_observations_count
+          from price_observations po
+          join tracked_products tp on tp.id = po.tracked_product_id
+          where po.checked_at >= datetime('now', '-7 days')
+          group by tp.shop_id
+        ) obs_counts
+          on obs_counts.shop_id = s.id
+        left join (
+          select tp.shop_id, count(*) as recent_alerts_count
+          from alerts a
+          join tracked_products tp on tp.id = a.tracked_product_id
+          where a.created_at >= datetime('now', '-7 days')
+          group by tp.shop_id
+        ) alert_counts
+          on alert_counts.shop_id = s.id
+        order by
+          case s.integration_status
+            when 'functional' then 0
+            when 'in_progress' then 1
+            when 'to_analyze' then 2
+            else 3
+          end,
+          s.name asc
+        limit ? offset ?
+        """,
+        (limit, offset),
+    ).fetchall()
+
+    statuses = [row_to_dict(row) for row in rows]
+    for shop in statuses:
+        shop["health_status"] = get_shop_health_status(shop)
+    return statuses
 
 
 def count_shops(connection: sqlite3.Connection) -> int:

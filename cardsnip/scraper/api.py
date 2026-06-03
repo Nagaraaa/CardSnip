@@ -100,6 +100,12 @@ def list_shops(connection: DbConnection, limit: int = 100, offset: int = 0) -> l
     return repositories.list_shops(connection, limit=limit, offset=offset)
 
 
+@app.get("/shops/status")
+def list_shop_statuses(connection: DbConnection, limit: int = 100, offset: int = 0) -> list[dict]:
+    limit, offset = normalize_pagination(limit, offset)
+    return repositories.list_shop_statuses(connection, limit=limit, offset=offset)
+
+
 @app.get("/shops/{shop_id}")
 def get_shop(shop_id: int, connection: DbConnection) -> dict:
     try:

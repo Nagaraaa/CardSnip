@@ -235,22 +235,129 @@ Page boutiques.
 
 Etat actuel :
 
-- boutiques mockees ;
-- activation / desactivation locale ;
-- statut de surveillance.
+- boutiques issues du seed SQLite local quand l'API est disponible ;
+- fallback mock si l'API locale est indisponible ;
+- statut de surveillance et sante du scraper ;
+- distinction entre sources BE-first, sources secondaires FR/EU et marketplaces non recommandees via `country`, `priority`, `type`, `integration_status` et `notes`.
 
-Boutiques mockees :
+Sources fonctionnelles aujourd'hui :
 
-- Cardmarket ;
-- Kuro Star ;
-- Pikastore ;
-- UltraJeux ;
-- Otakuland-Manga Passion.
+- Fake Shop : source locale de test ;
+- Otakuland-Manga Passion : scraper V1 fonctionnel mais source FR/EU secondaire.
+
+Source BE-first validee en V1 :
+
+- Outpost Brussels : scraper V1 `outpost_brussels` fonctionnel uniquement pour pages produit Shopify simples, parsing JSON-LD prioritaire, pas de crawl catalogue.
 
 Important :
 
-- aucune integration reelle n'est faite ;
-- les noms servent uniquement a simuler l'interface.
+- aucune autre vraie boutique n'est scrapee ;
+- Otakuland V1 reste limite aux pages produit simples sans options obligatoires ;
+- les boutiques belges sont prioritaires pour la suite car CardSnip vise d'abord un acheteur belge.
+
+## Strategie sources BE-first
+
+CardSnip adopte maintenant une strategie **BE-first**.
+
+Raison produit :
+
+- l'utilisateur vit en Belgique ;
+- une boutique francaise peut afficher un prix attractif mais devenir mauvaise apres frais de port vers la Belgique ;
+- un prix produit seul ne suffit pas a qualifier un deal.
+
+Exemple :
+
+```txt
+ETB affichee a 58 EUR
+-> livraison vers Belgique ajoutee a la caisse
+-> prix total reel proche de 85 EUR
+-> deal probablement mauvais
+```
+
+### Priorite 1 : BE-first prioritaires
+
+Ces boutiques doivent etre analysees avant de continuer a ajouter des sources FR/EU :
+
+- Outpost Brussels ;
+- SOD Games ;
+- TCG PokAlex ;
+- Strategy Games ;
+- Dreamland BE ;
+- Fnac BE.
+
+Toutes sont en `integration_status = to_analyze` et `scraper_key = not_configured`, sauf si une integration future est validee explicitement.
+
+### Priorite 2 : BE a verifier
+
+Ces sources restent pertinentes mais doivent etre confirmees avant scraper :
+
+- Bol.com ;
+- MediaMarkt BE ;
+- Carrefour BE ;
+- Trafic ;
+- Le P'tit Poucet ;
+- Cards Corner ;
+- PokemonStore.be ;
+- Collect Them All ;
+- Pockinity ;
+- Gamealot ;
+- Spelonk ;
+- CardWorld ;
+- Coolblue.
+
+Objectif de verification :
+
+- presence de produits Pokemon sealed ;
+- prix visible ;
+- stock visible ;
+- frais de port vers Belgique ;
+- structure HTML stable ;
+- conditions d'utilisation compatibles.
+
+### Priorite 3 : FR/EU secondaires
+
+Ces sources peuvent rester utiles, mais ne doivent pas piloter la strategie CardSnip :
+
+- Otakuland-Manga Passion ;
+- Kuro Star ;
+- Pikastore ;
+- UltraJeux ;
+- Cultura ;
+- Fnac FR.
+
+Otakuland-Manga Passion reste `functional` car le scraper V1 fonctionne, mais elle est reclassee en priorite `medium`. Elle doit etre traitee comme source FR/EU secondaire, avec verification des frais de port vers Belgique avant de considerer un prix comme un vrai deal.
+
+### Marketplaces exclues ou non recommandees
+
+Les marketplaces de particuliers ne sont pas recommandees comme sources d'achat CardSnip :
+
+- eBay ;
+- Vinted ;
+- Leboncoin ;
+- 2ememain ;
+- Facebook Marketplace.
+
+Raisons :
+
+- risque de faux produits ;
+- risque de produits resealed ;
+- vendeurs douteux ;
+- frais caches ;
+- fiabilite variable.
+
+Amazon reste `later`/`hard` car marketplace complexe avec vendeurs tiers, invitations, stock et prix variables.
+
+Cardmarket reste uniquement une reference marche potentielle plus tard, pas une source d'achat recommandee pour le MVP.
+
+### Deal Score futur
+
+Le futur `Deal Score` devra tenir compte du prix total reel :
+
+```txt
+prix produit + frais de port estimes vers Belgique
+```
+
+Tant que CardSnip ne connait pas les frais de port, un prix detecte doit etre considere comme un signal brut, pas comme un deal definitif.
 
 ### `/deals`
 

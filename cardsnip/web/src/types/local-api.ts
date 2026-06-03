@@ -24,6 +24,32 @@ export type ApiShop = {
   created_at: string;
 };
 
+export type ShopHealthStatus = "unknown" | "healthy" | "degraded" | "broken" | "not_configured";
+
+export type ApiShopStatus = {
+  shop_id: number;
+  name: string;
+  url: string | null;
+  scraper_key: string;
+  country?: string;
+  type?: string;
+  priority?: string;
+  difficulty?: string;
+  integration_status?: string;
+  notes?: string | null;
+  active: number;
+  trusted: number;
+  created_at: string;
+  last_checked_at: string | null;
+  last_success_at: string | null;
+  last_price: number | null;
+  last_stock_status: string | null;
+  recent_observations_count: number;
+  recent_alerts_count: number;
+  last_error: string | null;
+  health_status: ShopHealthStatus;
+};
+
 export type ApiTrackedProduct = {
   id: number;
   product_id: number;

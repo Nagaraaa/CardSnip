@@ -3,6 +3,7 @@ import {
   ApiObservation,
   ApiProduct,
   ApiShop,
+  ApiShopStatus,
   ApiTrackedProduct,
   CreateApiProductInput,
   CreateTrackedProductInput,
@@ -54,6 +55,7 @@ export const cardsnipApi = {
       body: JSON.stringify(payload),
     }),
   listShops: () => request<ApiShop[]>("/shops"),
+  listShopStatuses: () => request<ApiShopStatus[]>("/shops/status"),
   listTrackedProducts: () => request<ApiTrackedProduct[]>("/tracked-products"),
   createTrackedProduct: (payload: CreateTrackedProductInput) =>
     request<ApiTrackedProduct>("/tracked-products", {
