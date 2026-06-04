@@ -2,12 +2,14 @@ from scrapers.base import BaseScraper
 from scrapers.fake_shop import FakeShopScraper
 from scrapers.otakuland import OtakulandScraper
 from scrapers.outpost_brussels import OutpostBrusselsScraper
+from scrapers.tcg_pokalex import TcgPokalexScraper
 
 
 SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     FakeShopScraper.scraper_key: FakeShopScraper,
     OtakulandScraper.scraper_key: OtakulandScraper,
     OutpostBrusselsScraper.scraper_key: OutpostBrusselsScraper,
+    TcgPokalexScraper.scraper_key: TcgPokalexScraper,
 }
 
 

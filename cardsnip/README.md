@@ -249,6 +249,10 @@ Source BE-first validee en V1 :
 
 - Outpost Brussels : scraper V1 `outpost_brussels` fonctionnel uniquement pour pages produit Shopify simples, parsing JSON-LD prioritaire, pas de crawl catalogue. Il reutilise maintenant la base commune `ShopifyProductScraper`.
 
+Source BE-first validee en V1 :
+
+- TCG PokAlex : scraper V1 `tcg_pokalex` fonctionnel uniquement pour pages produit Odoo simples, parsing JSON-LD prioritaire, pas de crawl catalogue.
+
 Important :
 
 - aucune autre vraie boutique n'est scrapee ;
