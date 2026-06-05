@@ -343,3 +343,34 @@ Perimetre recommande pour un futur scraper V1 :
 - pas de crawl catalogue ;
 - pas de panier ;
 - pas de checkout.
+
+## Decision d'implementation V1
+
+Statut : pret a coder V1 limitee
+
+Perimetre :
+
+- pages produit WooCommerce simples uniquement ;
+- parsing prioritaire via JSON-LD ;
+- fallback WooCommerce leger ;
+- precommandes avec prix supportees ;
+- ruptures sans prix refusees proprement ;
+- pas de crawl catalogue ;
+- pas de panier ;
+- pas de checkout ;
+- pas de headless browser.
+
+scraper_key :
+
+```txt
+strategy_games
+```
+
+Statut seed initial :
+
+```txt
+integration_status = functional
+difficulty = medium
+priority = high
+notes = Fonctionnel uniquement pour StrategyGamesScraper V1 : pages produit WooCommerce simples, produits en stock ou precommandes avec prix, parsing JSON-LD prioritaire, ruptures sans prix refusees proprement, pas de crawl catalogue.
+```
