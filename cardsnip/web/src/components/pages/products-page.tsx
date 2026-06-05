@@ -6,6 +6,7 @@ import { AddProductModal, AddedProductDraft } from "@/components/add-product-mod
 import { AppPanel, CardSnipAppShell } from "@/components/cardsnip-app-shell";
 import { parseEuroPrice, ProductThumb, scoreOrder, scoreTone, StatusBadge } from "@/components/product-ui";
 import { cardsnipApi } from "@/lib/cardsnip-api";
+import { isDemoMode } from "@/lib/demo-mode";
 import { ApiObservation, ApiTrackedProduct } from "@/types/local-api";
 import { deals, DealScore, shops } from "@/data/mock-dashboard";
 
@@ -121,6 +122,7 @@ export function ProductsPage() {
   const [addedProducts, setAddedProducts] = useState<ProductRow[]>([]);
   const [apiProducts, setApiProducts] = useState<ProductRow[]>([]);
   const [apiAvailable, setApiAvailable] = useState(false);
+  const [apiErrorMessage, setApiErrorMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [isLocalStorageReady, setIsLocalStorageReady] = useState(false);
@@ -141,8 +143,12 @@ export function ProductsPage() {
         );
         setApiProducts(trackedProducts.map((product) => apiTrackedToProductRow(product, observationByTrackedId.get(product.id))));
         setApiAvailable(true);
+        setApiErrorMessage("");
       } catch {
-        if (!cancelled) setApiAvailable(false);
+        if (!cancelled) {
+          setApiAvailable(false);
+          setApiErrorMessage("API locale indisponible. Impossible de charger les produits surveillés réels.");
+        }
       }
     }
 
@@ -199,8 +205,9 @@ export function ProductsPage() {
   );
 
   const products = useMemo(() => {
+    if (isDemoMode) return [...addedProducts, ...baseProducts];
     if (apiAvailable) return apiProducts;
-    return [...addedProducts, ...baseProducts];
+    return [];
   }, [addedProducts, apiAvailable, apiProducts, baseProducts]);
 
   const shopOptions = useMemo(() => ["Toutes", ...Array.from(new Set(products.map((product) => product.shop)))], [products]);
@@ -259,7 +266,7 @@ export function ProductsPage() {
   return (
     <CardSnipAppShell
       title="Produits surveillés"
-      subtitle="Pilote les produits suivis, leurs seuils, leurs boutiques et leur état de surveillance."
+      subtitle={isDemoMode ? "Mode démo : produits mockés et ajouts locaux." : "Données réelles SQLite via FastAPI."}
       action={
         <button
           type="button"
@@ -271,12 +278,35 @@ export function ProductsPage() {
       }
     >
       <div className="grid gap-4">
+        {isDemoMode ? (
+          <AppPanel className="border-violet-400/20 bg-violet-400/[0.04] p-4 text-sm text-violet-100">
+            Mode démo : les produits affichés peuvent venir des mocks et du localStorage.
+          </AppPanel>
+        ) : null}
+
+        {!isDemoMode && !apiAvailable ? (
+          <AppPanel className="border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-amber-100">
+            {apiErrorMessage || "API locale indisponible. Impossible de charger les produits surveillés réels."}
+          </AppPanel>
+        ) : null}
+
+        {!isDemoMode && apiAvailable && apiProducts.length === 0 ? (
+          <AppPanel className="border-white/[0.08] bg-white/[0.025] p-6 text-sm text-zinc-300">
+            <p className="font-semibold text-white">Aucun produit surveillé pour l&apos;instant.</p>
+            <p className="mt-2 text-zinc-500">Crée un suivi depuis le Catalogue pour alimenter cette page.</p>
+          </AppPanel>
+        ) : null}
+
         <section className="grid gap-4 md:grid-cols-3">
           <AppPanel className="p-4">
             <p className="text-xs font-medium text-zinc-500">Produits suivis</p>
             <p className="mt-2 text-3xl font-semibold">{products.length}</p>
             <p className="mt-1 text-sm text-zinc-500">
-              {apiAvailable ? "Source SQLite locale" : `${pausedIds.length} en pause, ${addedProducts.length} ajout local`}
+              {isDemoMode
+                ? `${pausedIds.length} en pause, ${addedProducts.length} ajout local`
+                : apiAvailable
+                  ? "Données réelles SQLite"
+                  : "API indisponible"}
             </p>
           </AppPanel>
           <AppPanel className="p-4">
@@ -287,7 +317,9 @@ export function ProductsPage() {
           <AppPanel className="p-4">
             <p className="text-xs font-medium text-zinc-500">Prix moyen observé</p>
             <p className="mt-2 text-3xl font-semibold">{averagePrice.toFixed(2).replace(".", ",")} EUR</p>
-            <p className="mt-1 text-sm text-zinc-500">{apiAvailable ? "Dernieres observations SQLite" : "Fallback mock"}</p>
+            <p className="mt-1 text-sm text-zinc-500">
+              {isDemoMode ? "Mode démo" : apiAvailable ? "Dernières observations SQLite" : "API indisponible"}
+            </p>
           </AppPanel>
         </section>
 
@@ -417,9 +449,11 @@ export function ProductsPage() {
             <AppPanel className="p-8 text-center">
               <p className="font-semibold">Aucun produit trouvé</p>
               <p className="mt-2 text-sm text-zinc-500">
-                {apiAvailable
-                  ? "Cree un suivi depuis le catalogue pour alimenter cette page avec des donnees reelles."
-                  : "Essaie une autre boutique, un autre score ou une recherche plus large."}
+                {!isDemoMode && !apiAvailable
+                  ? "Démarre FastAPI pour afficher les produits surveillés réels."
+                  : apiAvailable
+                    ? "Crée un suivi depuis le catalogue pour alimenter cette page avec des données réelles."
+                    : "Essaie une autre boutique, un autre score ou une recherche plus large."}
               </p>
             </AppPanel>
           ) : null}

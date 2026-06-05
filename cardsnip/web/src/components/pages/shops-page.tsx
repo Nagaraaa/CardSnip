@@ -5,6 +5,7 @@ import { AppPanel, CardSnipAppShell } from "@/components/cardsnip-app-shell";
 import { StatusBadge } from "@/components/product-ui";
 import { shops } from "@/data/mock-dashboard";
 import { cardsnipApi } from "@/lib/cardsnip-api";
+import { isDemoMode } from "@/lib/demo-mode";
 import type { ApiShopStatus, ShopHealthStatus } from "@/types/local-api";
 
 type ShopRow = {
@@ -142,6 +143,7 @@ function mockShopToRow(shop: (typeof shops)[number]): ShopRow {
 export function ShopsPage() {
   const [apiShops, setApiShops] = useState<ShopRow[]>([]);
   const [apiAvailable, setApiAvailable] = useState(false);
+  const [apiErrorMessage, setApiErrorMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -152,8 +154,12 @@ export function ShopsPage() {
         if (cancelled) return;
         setApiShops(result.map(apiShopStatusToRow));
         setApiAvailable(true);
-      } catch {
-        if (!cancelled) setApiAvailable(false);
+        setApiErrorMessage("");
+      } catch (error) {
+        if (!cancelled) {
+          setApiAvailable(false);
+          setApiErrorMessage(error instanceof Error ? error.message : "API locale CardSnip indisponible.");
+        }
       }
     }
 
@@ -164,16 +170,40 @@ export function ShopsPage() {
     };
   }, []);
 
-  const rows = useMemo(() => (apiAvailable ? apiShops : shops.map(mockShopToRow)), [apiAvailable, apiShops]);
+  const rows = useMemo(() => {
+    if (apiAvailable) return apiShops;
+    if (isDemoMode) return shops.map(mockShopToRow);
+    return [];
+  }, [apiAvailable, apiShops]);
 
   return (
     <CardSnipAppShell
       title="Boutiques"
-      subtitle={apiAvailable ? "Statut local des sources CardSnip depuis SQLite." : "Sources fiables activables dans le prototype."}
+      subtitle={
+        apiAvailable
+          ? "Statut local des sources CardSnip depuis SQLite."
+          : isDemoMode
+            ? "Mode demo : sources mockees du prototype."
+            : "API locale indisponible."
+      }
     >
-      {!apiAvailable ? (
+      {!apiAvailable && isDemoMode ? (
         <AppPanel className="mb-4 border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-amber-100">
-          API locale indisponible, affichage des données de démonstration.
+          API locale indisponible, affichage explicite des donnees de demonstration.
+        </AppPanel>
+      ) : null}
+
+      {!apiAvailable && !isDemoMode ? (
+        <AppPanel className="mb-4 border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-amber-100">
+          API locale indisponible. Les boutiques reelles ne peuvent pas etre chargees.
+          {apiErrorMessage ? <span className="mt-2 block text-xs text-amber-200/80">{apiErrorMessage}</span> : null}
+        </AppPanel>
+      ) : null}
+
+      {apiAvailable && rows.length === 0 ? (
+        <AppPanel className="mb-4 border-white/[0.08] bg-white/[0.025] p-5 text-sm text-zinc-300">
+          <p className="font-semibold text-white">Aucune boutique reelle disponible.</p>
+          <p className="mt-2 text-zinc-500">Initialise SQLite pour remplir la liste des shops.</p>
         </AppPanel>
       ) : null}
 

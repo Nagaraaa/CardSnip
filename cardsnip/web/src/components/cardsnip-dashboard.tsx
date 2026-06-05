@@ -12,10 +12,11 @@ import {
   stats,
 } from "@/data/mock-dashboard";
 import { cardsnipApi } from "@/lib/cardsnip-api";
+import { isDemoMode } from "@/lib/demo-mode";
 import { AppPanel, CardSnipAppShell } from "@/components/cardsnip-app-shell";
 import { ProductThumb, StatusBadge } from "@/components/product-ui";
 import type { PriceChartDatum, PriceHistoryChartProps } from "@/components/price-history-chart";
-import type { ApiAlert, ApiObservation } from "@/types/local-api";
+import type { ApiAlert, ApiObservation, ApiShopStatus } from "@/types/local-api";
 
 const PriceHistoryChart = dynamic<PriceHistoryChartProps>(
   () => import("@/components/price-history-chart").then((module) => module.PriceHistoryChart),
@@ -177,6 +178,7 @@ export function CardSnipDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [latestObservations, setLatestObservations] = useState<ApiObservation[]>([]);
   const [realAlerts, setRealAlerts] = useState<ApiAlert[]>([]);
+  const [shopStatuses, setShopStatuses] = useState<ApiShopStatus[]>([]);
   const [apiAvailable, setApiAvailable] = useState(false);
   const [apiErrorMessage, setApiErrorMessage] = useState("");
   const [isRunningCheck, setIsRunningCheck] = useState(false);
@@ -184,13 +186,15 @@ export function CardSnipDashboard() {
 
   async function loadLocalData() {
     try {
-      const [observations, alerts] = await Promise.all([
+      const [observations, alerts, statuses] = await Promise.all([
         cardsnipApi.listLatestObservations(),
         cardsnipApi.listAlerts(),
+        cardsnipApi.listShopStatuses(),
       ]);
 
       setLatestObservations(observations);
       setRealAlerts(alerts);
+      setShopStatuses(statuses);
       setApiAvailable(true);
       setApiErrorMessage("");
     } catch (error) {
@@ -208,6 +212,61 @@ export function CardSnipDashboard() {
   }, []);
 
   const activeShopCount = useMemo(() => shops.filter((shop) => shop.enabled).length, [shops]);
+  const healthyShopCount = useMemo(
+    () => shopStatuses.filter((shop) => shop.health_status === "healthy").length,
+    [shopStatuses],
+  );
+  const inStockObservationCount = useMemo(
+    () => latestObservations.filter((observation) => observation.stock_status === "in_stock").length,
+    [latestObservations],
+  );
+  const dashboardStats = useMemo(() => {
+    if (isDemoMode) {
+      return stats;
+    }
+
+    return [
+      {
+        id: "real-observations",
+        icon: "SQL",
+        value: String(latestObservations.length),
+        label: "Derniers checks reels",
+        delta: apiAvailable ? "SQLite" : "API offline",
+        sparkline: "M4 34 L20 28 L36 31 L52 22 L68 26 L84 18 L100 21 L120 14",
+      },
+      {
+        id: "real-alerts",
+        icon: "AL",
+        value: String(realAlerts.length),
+        label: "Alertes locales",
+        delta: apiAvailable ? "FastAPI" : "API offline",
+        sparkline: "M4 30 L20 30 L36 24 L52 26 L68 16 L84 24 L100 20 L120 18",
+      },
+      {
+        id: "real-shops",
+        icon: "SC",
+        value: `${healthyShopCount}/${shopStatuses.length}`,
+        label: "Scrapers sains",
+        delta: shopStatuses.length > 0 ? "Statut shops" : "Non verifie",
+        sparkline: "M4 38 L20 36 L36 32 L52 32 L68 28 L84 24 L100 20 L120 18",
+      },
+      {
+        id: "real-stock",
+        icon: "ST",
+        value: String(inStockObservationCount),
+        label: "Derniers checks en stock",
+        delta: latestObservations.length > 0 ? "Observations" : "Aucune donnee",
+        sparkline: "M4 36 L20 32 L36 34 L52 28 L68 30 L84 24 L100 26 L120 20",
+      },
+    ];
+  }, [
+    apiAvailable,
+    healthyShopCount,
+    inStockObservationCount,
+    latestObservations.length,
+    realAlerts.length,
+    shopStatuses.length,
+  ]);
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredDeals = useMemo(() => {
     if (!normalizedSearch) {
@@ -263,7 +322,7 @@ export function CardSnipDashboard() {
   return (
     <CardSnipAppShell
       title="Dashboard CardSnip"
-      subtitle="Surveillance mockée de produits sealed TCG."
+      subtitle={isDemoMode ? "Mode démo : aperçu mocké du dashboard." : "Données réelles SQLite via FastAPI."}
       action={
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <label className="flex h-10 min-w-0 items-center rounded-lg border border-white/[0.08] bg-white/[0.035] px-3 text-sm text-zinc-500 transition focus-within:border-violet-300/40 sm:w-80">
@@ -286,8 +345,27 @@ export function CardSnipDashboard() {
         </div>
       }
     >
+      {isDemoMode ? (
+        <AppPanel className="mb-4 border-violet-400/20 bg-violet-400/[0.04] p-4 text-sm text-violet-100">
+          Mode démo : certains blocs affichent des données mockées de présentation.
+        </AppPanel>
+      ) : null}
+
+      {!isDemoMode && !apiAvailable ? (
+        <AppPanel className="mb-4 border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-amber-100">
+          API locale indisponible. Démarre FastAPI pour afficher les données réelles.
+        </AppPanel>
+      ) : null}
+
+      {!isDemoMode && apiAvailable && latestObservations.length === 0 ? (
+        <AppPanel className="mb-4 border-white/[0.08] bg-white/[0.025] p-5 text-sm text-zinc-300">
+          <p className="font-semibold text-white">Aucune observation réelle pour l&apos;instant.</p>
+          <p className="mt-2 text-zinc-500">Lance un check scraper pour alimenter le dashboard.</p>
+        </AppPanel>
+      ) : null}
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
+        {dashboardStats.map((stat) => (
           <AppPanel key={stat.id} className="relative h-32 overflow-hidden p-4">
             <svg viewBox="0 0 124 48" className="absolute right-3 top-5 h-14 w-32 text-violet-300/25">
               <path
@@ -342,6 +420,7 @@ export function CardSnipDashboard() {
             </AppPanel>
           ) : null}
 
+          {isDemoMode ? (
           <AppPanel className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
               <h2 className="text-base font-semibold">Derniers bons deals</h2>
@@ -413,7 +492,9 @@ export function CardSnipDashboard() {
               </table>
             </div>
           </AppPanel>
+          ) : null}
 
+          {isDemoMode ? (
           <AppPanel className="p-4">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
@@ -498,7 +579,23 @@ export function CardSnipDashboard() {
               ) : null}
             </div>
           </AppPanel>
+          ) : (
+            <AppPanel className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-semibold">Historique des prix reel</h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-500">
+                    Le graphique reel apparaitra quand un produit aura plusieurs observations SQLite.
+                  </p>
+                </div>
+                <span className="rounded-full border border-white/[0.08] px-3 py-1 text-xs font-semibold text-zinc-400">
+                  Donnees insuffisantes
+                </span>
+              </div>
+            </AppPanel>
+          )}
 
+          {isDemoMode ? (
           <AppPanel className="p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -529,6 +626,7 @@ export function CardSnipDashboard() {
               ))}
             </div>
           </AppPanel>
+          ) : null}
         </div>
 
         <div className="grid gap-4">
@@ -537,8 +635,8 @@ export function CardSnipDashboard() {
               <h2 className="text-base font-semibold">Alertes récentes</h2>
             </div>
             <div className="grid gap-2 p-4">
-              {realAlerts.length > 0
-                ? realAlerts.slice(0, 4).map((alert) => (
+              {realAlerts.length > 0 ? (
+                realAlerts.slice(0, 4).map((alert) => (
                     <div key={alert.id} className="flex min-w-0 items-start gap-3 rounded-xl p-2 hover:bg-white/[0.035]">
                       <ProductThumb tone="from-emerald-200 to-violet-100" label="SQL" />
                       <div className="min-w-0 flex-1">
@@ -550,7 +648,8 @@ export function CardSnipDashboard() {
                       </span>
                     </div>
                   ))
-                : filteredDeals.slice(0, 4).map((deal) => (
+              ) : isDemoMode ? (
+                filteredDeals.slice(0, 4).map((deal) => (
                     <div key={deal.id} className="flex items-center gap-3 rounded-xl p-2 hover:bg-white/[0.035]">
                       <ProductThumb tone={deal.thumbnailTone} />
                       <div className="min-w-0 flex-1">
@@ -561,7 +660,14 @@ export function CardSnipDashboard() {
                         {deal.currentPrice}
                       </span>
                     </div>
-                  ))}
+                  ))
+              ) : (
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-4 text-sm text-zinc-400">
+                  {apiAvailable
+                    ? "Aucune alerte reelle pour l'instant."
+                    : "API locale indisponible. Les alertes reelles ne peuvent pas etre chargees."}
+                </div>
+              )}
             </div>
           </AppPanel>
 
@@ -578,24 +684,55 @@ export function CardSnipDashboard() {
                   {apiErrorMessage}
                 </div>
               ) : null}
-              {shops.map((shop) => (
-                <div key={shop.id} className="flex items-center gap-3 border-b border-white/[0.06] py-3 last:border-b-0">
-                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/[0.05] text-xs font-black">
-                    {shop.mark}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold">{shop.name}</p>
-                    <p className="text-xs text-zinc-500">Dernier check - {shop.lastCheck}</p>
-                  </div>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      shop.enabled ? "bg-emerald-400/10 text-emerald-300" : "bg-zinc-400/10 text-zinc-400"
-                    }`}
-                  >
-                    {shop.enabled ? "OK" : "Pause"}
-                  </span>
-                </div>
-              ))}
+              {apiAvailable && shopStatuses.length > 0
+                ? shopStatuses.slice(0, 6).map((shop) => (
+                    <div key={shop.shop_id} className="flex items-center gap-3 border-b border-white/[0.06] py-3 last:border-b-0">
+                      <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/[0.05] text-xs font-black">
+                        {shop.name.slice(0, 2).toUpperCase()}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{shop.name}</p>
+                        <p className="text-xs text-zinc-500">
+                          {shop.last_checked_at ? `Dernier check - ${shop.last_checked_at}` : "Jamais verifie"}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          shop.health_status === "healthy"
+                            ? "bg-emerald-400/10 text-emerald-300"
+                            : shop.health_status === "not_configured"
+                              ? "bg-zinc-400/10 text-zinc-400"
+                              : "bg-amber-400/10 text-amber-200"
+                        }`}
+                      >
+                        {shop.health_status}
+                      </span>
+                    </div>
+                  ))
+                : isDemoMode
+                  ? shops.map((shop) => (
+                      <div key={shop.id} className="flex items-center gap-3 border-b border-white/[0.06] py-3 last:border-b-0">
+                        <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/[0.05] text-xs font-black">
+                          {shop.mark}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold">{shop.name}</p>
+                          <p className="text-xs text-zinc-500">Demo - {shop.lastCheck}</p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            shop.enabled ? "bg-emerald-400/10 text-emerald-300" : "bg-zinc-400/10 text-zinc-400"
+                          }`}
+                        >
+                          {shop.enabled ? "OK demo" : "Pause"}
+                        </span>
+                      </div>
+                    ))
+                  : (
+                    <div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-4 text-sm text-zinc-400">
+                      {apiAvailable ? "Aucun statut scraper reel disponible." : "API locale indisponible."}
+                    </div>
+                  )}
             </div>
           </AppPanel>
         </div>
