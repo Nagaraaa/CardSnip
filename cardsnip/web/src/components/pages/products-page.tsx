@@ -7,7 +7,7 @@ import { AppPanel, CardSnipAppShell } from "@/components/cardsnip-app-shell";
 import { parseEuroPrice, ProductThumb, scoreOrder, scoreTone, StatusBadge } from "@/components/product-ui";
 import { cardsnipApi } from "@/lib/cardsnip-api";
 import { isDemoMode } from "@/lib/demo-mode";
-import { ApiObservation, ApiTrackedProduct } from "@/types/local-api";
+import { ApiObservation, ApiTrackedProduct, ApiTrackedProductCheckResult } from "@/types/local-api";
 import { deals, DealScore, shops } from "@/data/mock-dashboard";
 
 type ProductRow =
@@ -47,6 +47,7 @@ type ProductRow =
       category: string;
       productUrl: string;
       stockLabel?: string;
+      trackedProductId?: number;
     };
 
 const shopNames = shops.map((shop) => shop.name);
@@ -111,6 +112,7 @@ function apiTrackedToProductRow(product: ApiTrackedProduct, observation?: ApiObs
     category: product.category || "TCG",
     productUrl: product.source_url,
     stockLabel: observation?.stock_status === "in_stock" ? "En stock" : observation?.stock_status === "out_of_stock" ? "Rupture" : undefined,
+    trackedProductId: product.id,
   };
 }
 
@@ -126,16 +128,29 @@ export function ProductsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [isLocalStorageReady, setIsLocalStorageReady] = useState(false);
+  const [checkingProductId, setCheckingProductId] = useState<number | null>(null);
+  const [manualCheckResults, setManualCheckResults] = useState<Record<number, ApiTrackedProductCheckResult>>({});
+
+  async function loadTrackedProducts() {
+    const [trackedProducts, latestObservations] = await Promise.all([
+      cardsnipApi.listTrackedProducts(),
+      cardsnipApi.listLatestObservations(),
+    ]);
+
+    const observationByTrackedId = new Map(
+      latestObservations.map((observation) => [observation.tracked_product_id, observation]),
+    );
+    setApiProducts(trackedProducts.map((product) => apiTrackedToProductRow(product, observationByTrackedId.get(product.id))));
+    setApiAvailable(true);
+    setApiErrorMessage("");
+  }
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadTrackedProducts() {
+    async function loadInitialTrackedProducts() {
       try {
-        const [trackedProducts, latestObservations] = await Promise.all([
-          cardsnipApi.listTrackedProducts(),
-          cardsnipApi.listLatestObservations(),
-        ]);
+        const [trackedProducts, latestObservations] = await Promise.all([cardsnipApi.listTrackedProducts(), cardsnipApi.listLatestObservations()]);
         if (cancelled) return;
 
         const observationByTrackedId = new Map(
@@ -152,7 +167,7 @@ export function ProductsPage() {
       }
     }
 
-    void loadTrackedProducts();
+    void loadInitialTrackedProducts();
 
     return () => {
       cancelled = true;
@@ -263,6 +278,33 @@ export function ProductsPage() {
     window.setTimeout(() => setToast(""), 2400);
   }
 
+  async function testTrackedProduct(trackedProductId: number) {
+    setCheckingProductId(trackedProductId);
+
+    try {
+      const result = await cardsnipApi.checkTrackedProduct(trackedProductId);
+      setManualCheckResults((current) => ({ ...current, [trackedProductId]: result }));
+      if (result.errors === 0) {
+        await loadTrackedProducts();
+      }
+    } catch (error) {
+      setManualCheckResults((current) => ({
+        ...current,
+        [trackedProductId]: {
+          tracked_product_id: trackedProductId,
+          price: null,
+          stock_status: null,
+          observation_created: false,
+          alerts_created: 0,
+          errors: 1,
+          messages: [error instanceof Error ? error.message : "Erreur inconnue pendant le test manuel."],
+        },
+      }));
+    } finally {
+      setCheckingProductId(null);
+    }
+  }
+
   return (
     <CardSnipAppShell
       title="Produits surveillés"
@@ -366,6 +408,10 @@ export function ProductsPage() {
         <div className="grid gap-3">
           {filteredProducts.map((product) => {
             const isPaused = pausedIds.includes(product.id);
+            const manualCheckResult =
+              product.kind === "api" && product.trackedProductId
+                ? manualCheckResults[product.trackedProductId]
+                : undefined;
 
             return (
               <AppPanel
@@ -396,6 +442,30 @@ export function ProductsPage() {
                     </p>
                     {product.stockLabel ? <p className="mt-1 text-xs text-zinc-500">Stock detecte : {product.stockLabel}</p> : null}
                     {product.productUrl ? <p className="mt-2 truncate text-xs text-zinc-600">{product.productUrl}</p> : null}
+                    {manualCheckResult ? (
+                      <div
+                        className={`mt-3 rounded-lg border p-3 text-xs ${
+                          manualCheckResult.errors > 0
+                            ? "border-red-300/15 bg-red-400/5 text-red-100"
+                            : "border-emerald-300/15 bg-emerald-400/5 text-emerald-100"
+                        }`}
+                      >
+                        <p className="font-semibold">
+                          {manualCheckResult.errors > 0 ? "Erreur test manuel" : "Dernier test manuel"}
+                        </p>
+                        {manualCheckResult.errors > 0 ? (
+                          <p className="mt-1 leading-5">{manualCheckResult.messages.join(" ")}</p>
+                        ) : (
+                          <p className="mt-1 leading-5">
+                            OK -{" "}
+                            {manualCheckResult.price !== null ? formatEuro(manualCheckResult.price) : "Prix indisponible"} -{" "}
+                            {manualCheckResult.stock_status === "in_stock" ? "En stock" : "Rupture"} -{" "}
+                            {manualCheckResult.observation_created ? "observation creee" : "aucune observation"} -{" "}
+                            {manualCheckResult.alerts_created} alerte(s)
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5 xl:w-[680px]">
                     <div>
@@ -436,6 +506,15 @@ export function ProductsPage() {
                           className="rounded-lg border border-red-300/15 bg-red-400/5 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-400/10"
                         >
                           Retirer
+                        </button>
+                      ) : product.kind === "api" && product.trackedProductId ? (
+                        <button
+                          type="button"
+                          onClick={() => void testTrackedProduct(product.trackedProductId as number)}
+                          disabled={!apiAvailable || checkingProductId === product.trackedProductId}
+                          className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:border-white/[0.08] disabled:bg-white/[0.03] disabled:text-zinc-500"
+                        >
+                          {checkingProductId === product.trackedProductId ? "Test..." : "Tester maintenant"}
                         </button>
                       ) : null}
                     </div>

@@ -6,10 +6,11 @@ import { StatusBadge } from "@/components/product-ui";
 import { shops } from "@/data/mock-dashboard";
 import { cardsnipApi } from "@/lib/cardsnip-api";
 import { isDemoMode } from "@/lib/demo-mode";
-import type { ApiShopStatus, ShopHealthStatus } from "@/types/local-api";
+import type { ApiShopCheckResult, ApiShopStatus, ShopHealthStatus } from "@/types/local-api";
 
 type ShopRow = {
   id: string;
+  shopId: number | null;
   name: string;
   country: string;
   type: string;
@@ -93,6 +94,7 @@ function formatStock(value: string | null | undefined) {
 function apiShopStatusToRow(shop: ApiShopStatus): ShopRow {
   return {
     id: `api-shop-${shop.shop_id}`,
+    shopId: shop.shop_id,
     name: shop.name,
     country: shop.country ?? "unknown",
     type: shop.type ?? "tcg_specialist",
@@ -118,6 +120,7 @@ function apiShopStatusToRow(shop: ApiShopStatus): ShopRow {
 function mockShopToRow(shop: (typeof shops)[number]): ShopRow {
   return {
     id: shop.id,
+    shopId: null,
     name: shop.name,
     country: "mock",
     type: "tcg_specialist",
@@ -144,11 +147,21 @@ export function ShopsPage() {
   const [apiShops, setApiShops] = useState<ShopRow[]>([]);
   const [apiAvailable, setApiAvailable] = useState(false);
   const [apiErrorMessage, setApiErrorMessage] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState("functional");
+  const [checkingShopId, setCheckingShopId] = useState<number | null>(null);
+  const [shopCheckResults, setShopCheckResults] = useState<Record<number, ApiShopCheckResult>>({});
+
+  async function loadShops() {
+    const result = await cardsnipApi.listShopStatuses();
+    setApiShops(result.map(apiShopStatusToRow));
+    setApiAvailable(true);
+    setApiErrorMessage("");
+  }
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadShops() {
+    async function loadInitialShops() {
       try {
         const result = await cardsnipApi.listShopStatuses();
         if (cancelled) return;
@@ -163,7 +176,7 @@ export function ShopsPage() {
       }
     }
 
-    void loadShops();
+    void loadInitialShops();
 
     return () => {
       cancelled = true;
@@ -175,6 +188,83 @@ export function ShopsPage() {
     if (isDemoMode) return shops.map(mockShopToRow);
     return [];
   }, [apiAvailable, apiShops]);
+
+  const filters = useMemo(
+    () => [
+      { id: "functional", label: "Fonctionnelles" },
+      { id: "in_progress", label: "En cours" },
+      { id: "to_analyze", label: "A analyser" },
+      { id: "to_review", label: "A revoir" },
+      { id: "later", label: "A eviter / plus tard" },
+      { id: "all", label: "Toutes" },
+    ],
+    [],
+  );
+
+  const filterCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      functional: 0,
+      in_progress: 0,
+      to_analyze: 0,
+      to_review: 0,
+      later: 0,
+      all: rows.length,
+    };
+
+    for (const shop of rows) {
+      if (shop.integrationStatus === "functional") counts.functional += 1;
+      else if (shop.integrationStatus === "in_progress") counts.in_progress += 1;
+      else if (shop.integrationStatus === "to_analyze") counts.to_analyze += 1;
+      else if (shop.integrationStatus === "disabled" || shop.integrationStatus === "later") counts.later += 1;
+      else counts.to_review += 1;
+    }
+
+    return counts;
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    const sortedRows = [...rows].sort((a, b) => {
+      if (a.integrationStatus === "functional" && b.integrationStatus !== "functional") return -1;
+      if (a.integrationStatus !== "functional" && b.integrationStatus === "functional") return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    if (selectedFilter === "all") return sortedRows;
+    if (selectedFilter === "later") {
+      return sortedRows.filter((shop) => shop.integrationStatus === "disabled" || shop.integrationStatus === "later");
+    }
+    if (selectedFilter === "to_review") {
+      return sortedRows.filter(
+        (shop) => !["functional", "in_progress", "to_analyze", "disabled", "later"].includes(shop.integrationStatus),
+      );
+    }
+    return sortedRows.filter((shop) => shop.integrationStatus === selectedFilter);
+  }, [rows, selectedFilter]);
+
+  async function testShop(shopId: number) {
+    setCheckingShopId(shopId);
+
+    try {
+      const result = await cardsnipApi.checkShop(shopId);
+      setShopCheckResults((current) => ({ ...current, [shopId]: result }));
+      await loadShops();
+    } catch (error) {
+      setShopCheckResults((current) => ({
+        ...current,
+        [shopId]: {
+          shop_id: shopId,
+          shop_name: "Boutique",
+          tracked_products: 0,
+          observations: 0,
+          alerts: 0,
+          errors: 1,
+          messages: [error instanceof Error ? error.message : "Erreur inconnue pendant le test boutique."],
+        },
+      }));
+    } finally {
+      setCheckingShopId(null);
+    }
+  }
 
   return (
     <CardSnipAppShell
@@ -207,8 +297,28 @@ export function ShopsPage() {
         </AppPanel>
       ) : null}
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        {filters.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            onClick={() => setSelectedFilter(filter.id)}
+            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+              selectedFilter === filter.id
+                ? "border-violet-300/30 bg-violet-400/15 text-violet-100"
+                : "border-white/[0.08] bg-white/[0.025] text-zinc-400 hover:text-zinc-100"
+            }`}
+          >
+            {filter.label} ({filterCounts[filter.id] ?? 0})
+          </button>
+        ))}
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {rows.map((shop) => (
+        {filteredRows.map((shop) => {
+          const shopCheckResult = shop.shopId ? shopCheckResults[shop.shopId] : undefined;
+
+          return (
           <AppPanel key={shop.id} className="p-5">
             <div className="flex items-center gap-3">
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-white/[0.05] text-xs font-black">{shop.mark}</div>
@@ -269,9 +379,44 @@ export function ShopsPage() {
                 </dl>
                 <p className="mt-2 text-xs text-zinc-500">Dernière erreur : {shop.lastError}</p>
               </div>
+
+              {apiAvailable && shop.integrationStatus === "functional" && shop.shopId ? (
+                <button
+                  type="button"
+                  onClick={() => void testShop(shop.shopId as number)}
+                  disabled={checkingShopId === shop.shopId}
+                  className="h-10 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-4 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:border-white/[0.08] disabled:bg-white/[0.03] disabled:text-zinc-500"
+                >
+                  {checkingShopId === shop.shopId ? "Test en cours..." : "Tester cette boutique"}
+                </button>
+              ) : (
+                <p className="text-xs text-zinc-500">Test individuel disponible depuis la page Produits.</p>
+              )}
+
+              {shopCheckResult ? (
+                <div
+                  className={`rounded-xl border p-3 text-xs ${
+                    shopCheckResult.errors > 0
+                      ? "border-red-300/15 bg-red-400/5 text-red-100"
+                      : "border-emerald-300/15 bg-emerald-400/5 text-emerald-100"
+                  }`}
+                >
+                  <p className="font-semibold">
+                    {shopCheckResult.errors > 0 ? "Erreur test boutique" : "Dernier test boutique"}
+                  </p>
+                  <p className="mt-1 leading-5">
+                    {shopCheckResult.tracked_products} suivi(s), {shopCheckResult.observations} observation(s),{" "}
+                    {shopCheckResult.alerts} alerte(s), {shopCheckResult.errors} erreur(s)
+                  </p>
+                  {shopCheckResult.messages.length > 0 ? (
+                    <p className="mt-1 leading-5">{shopCheckResult.messages.join(" ")}</p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </AppPanel>
-        ))}
+          );
+        })}
       </div>
     </CardSnipAppShell>
   );

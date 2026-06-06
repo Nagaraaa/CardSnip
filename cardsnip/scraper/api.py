@@ -7,7 +7,7 @@ import sqlite3
 
 from storage.database import get_connection, init_db
 from storage import repositories
-from services.tracked_check_service import run_tracked_products
+from services.tracked_check_service import check_tracked_product, run_tracked_products
 
 
 app = FastAPI(title="CardSnip Local API", version="0.1.0")
@@ -156,6 +156,47 @@ def create_tracked_product(payload: TrackedProductCreate, connection: DbConnecti
         raise HTTPException(status_code=400, detail=detail) from error
     except sqlite3.IntegrityError as error:
         raise HTTPException(status_code=400, detail="Invalid product_id or shop_id") from error
+
+
+@app.post("/tracked-products/{tracked_product_id}/check")
+def check_single_tracked_product(tracked_product_id: int, connection: DbConnection) -> dict[str, Any]:
+    try:
+        tracked_product = repositories.get_tracked_product(connection, tracked_product_id)
+    except ValueError:
+        raise_not_found("Produit suivi", tracked_product_id)
+
+    return check_tracked_product(connection, tracked_product)
+
+
+@app.post("/shops/{shop_id}/check")
+def check_shop_tracked_products(shop_id: int, connection: DbConnection) -> dict[str, Any]:
+    try:
+        shop = repositories.get_shop(connection, shop_id)
+    except ValueError:
+        raise_not_found("Boutique", shop_id)
+
+    tracked_products = repositories.list_tracked_products_for_shop(connection, shop_id=shop_id, active_only=True)
+    summary: dict[str, Any] = {
+        "shop_id": shop_id,
+        "shop_name": shop["name"],
+        "tracked_products": len(tracked_products),
+        "observations": 0,
+        "alerts": 0,
+        "errors": 0,
+        "messages": [],
+    }
+
+    for tracked_product in tracked_products:
+        result = check_tracked_product(connection, tracked_product)
+        summary["observations"] += 1 if result["observation_created"] else 0
+        summary["alerts"] += result["alerts_created"]
+        summary["errors"] += result["errors"]
+        summary["messages"].extend(result["messages"])
+
+    if not tracked_products:
+        summary["messages"].append("Aucun produit suivi actif pour cette boutique.")
+
+    return summary
 
 
 @app.get("/observations")

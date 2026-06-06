@@ -111,3 +111,25 @@ export type ScraperRunResult = {
   errors: number;
   messages: string[];
 };
+
+export type ApiTrackedProductCheckResult = {
+  tracked_product_id: number;
+  shop_name?: string;
+  source_url?: string;
+  price: number | null;
+  stock_status: string | null;
+  observation_created: boolean;
+  alerts_created: number;
+  errors: number;
+  messages: string[];
+};
+
+export type ApiShopCheckResult = {
+  shop_id: number;
+  shop_name: string;
+  tracked_products: number;
+  observations: number;
+  alerts: number;
+  errors: number;
+  messages: string[];
+};

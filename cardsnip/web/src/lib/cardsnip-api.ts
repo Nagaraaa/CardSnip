@@ -3,8 +3,10 @@ import {
   ApiObservation,
   ApiProduct,
   ApiShop,
+  ApiShopCheckResult,
   ApiShopStatus,
   ApiTrackedProduct,
+  ApiTrackedProductCheckResult,
   CreateApiProductInput,
   CreateTrackedProductInput,
   ScraperRunResult,
@@ -64,6 +66,14 @@ export const cardsnipApi = {
     }),
   listLatestObservations: () => request<ApiObservation[]>("/observations/latest"),
   listAlerts: () => request<ApiAlert[]>("/alerts"),
+  checkTrackedProduct: (trackedProductId: number) =>
+    request<ApiTrackedProductCheckResult>(`/tracked-products/${trackedProductId}/check`, {
+      method: "POST",
+    }),
+  checkShop: (shopId: number) =>
+    request<ApiShopCheckResult>(`/shops/${shopId}/check`, {
+      method: "POST",
+    }),
   runScraper: () =>
     request<ScraperRunResult>("/scraper/run", {
       method: "POST",

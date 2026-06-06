@@ -328,6 +328,42 @@ def get_tracked_product(connection: sqlite3.Connection, tracked_product_id: int)
     raise ValueError(f"Tracked product not found: {tracked_product_id}")
 
 
+def list_tracked_products_for_shop(
+    connection: sqlite3.Connection,
+    shop_id: int,
+    active_only: bool = True,
+) -> list[dict[str, Any]]:
+    where_active = "and tp.active = 1" if active_only else ""
+    rows = connection.execute(
+        f"""
+        select
+          tp.id,
+          tp.product_id,
+          p.name as product_name,
+          p.category,
+          p.language,
+          p.extension,
+          p.image_url,
+          tp.shop_id,
+          s.name as shop_name,
+          s.url as shop_url,
+          s.scraper_key,
+          tp.source_url,
+          tp.target_price,
+          tp.active,
+          tp.created_at
+        from tracked_products tp
+        join products p on p.id = tp.product_id
+        join shops s on s.id = tp.shop_id
+        where tp.shop_id = ?
+        {where_active}
+        order by tp.id desc
+        """,
+        (shop_id,),
+    ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
 def list_observations(connection: sqlite3.Connection, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
     rows = connection.execute(
         """

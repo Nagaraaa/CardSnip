@@ -33,15 +33,11 @@ def run_tracked_products() -> dict[str, Any]:
         print(f"{len(tracked_products)} produit(s) suivi(s) actif(s) a checker.")
 
         for tracked_product in tracked_products:
-            try:
-                result = scrape_tracked_product(connection, tracked_product)
-                summary["observations"] += result["observations"]
-                summary["alerts"] += result["alerts"]
-            except Exception as error:
-                summary["errors"] += 1
-                message = f"Erreur check #{tracked_product['id']} ({tracked_product['product_name']}): {error}"
-                summary["messages"].append(message)
-                print(message)
+            result = check_tracked_product(connection, tracked_product)
+            summary["observations"] += 1 if result["observation_created"] else 0
+            summary["alerts"] += result["alerts_created"]
+            summary["errors"] += result["errors"]
+            summary["messages"].extend(result["messages"])
     finally:
         connection.close()
 
@@ -49,6 +45,45 @@ def run_tracked_products() -> dict[str, Any]:
 
 
 def scrape_tracked_product(connection: sqlite3.Connection, tracked_product: dict[str, Any]) -> dict[str, int]:
+    result = check_tracked_product(connection, tracked_product)
+    if result["errors"]:
+        raise RuntimeError("; ".join(result["messages"]))
+
+    return {
+        "observations": 1 if result["observation_created"] else 0,
+        "alerts": int(result["alerts_created"]),
+    }
+
+
+def check_tracked_product(connection: sqlite3.Connection, tracked_product: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "tracked_product_id": tracked_product["id"],
+        "shop_name": tracked_product.get("shop_name"),
+        "source_url": tracked_product.get("source_url"),
+        "price": None,
+        "stock_status": None,
+        "observation_created": False,
+        "alerts_created": 0,
+        "errors": 0,
+        "messages": [],
+    }
+
+    try:
+        check = scrape_and_store_tracked_product(connection, tracked_product)
+        result["price"] = check["price"]
+        result["stock_status"] = check["stock_status"]
+        result["observation_created"] = True
+        result["alerts_created"] = check["alerts_created"]
+    except Exception as error:
+        message = f"Erreur check #{tracked_product['id']} ({tracked_product['product_name']}): {error}"
+        result["errors"] = 1
+        result["messages"].append(message)
+        print(message)
+
+    return result
+
+
+def scrape_and_store_tracked_product(connection: sqlite3.Connection, tracked_product: dict[str, Any]) -> dict[str, Any]:
     scraper = create_scraper(
         scraper_key=tracked_product["scraper_key"],
         source_url=tracked_product["source_url"],
@@ -89,8 +124,9 @@ def scrape_tracked_product(connection: sqlite3.Connection, tracked_product: dict
     AlertService().send_alerts(check)
 
     return {
-        "observations": 1,
-        "alerts": len(alert_messages),
+        "price": check.price,
+        "stock_status": "in_stock" if check.in_stock else "out_of_stock",
+        "alerts_created": len(alert_messages),
     }
 
 
